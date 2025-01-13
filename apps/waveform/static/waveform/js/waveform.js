@@ -1,3 +1,11 @@
+/**
+ * Waveform drawing module.
+ * Handles the rendering of waveforms and timeline on canvases.
+ * Contains functions for drawing signal transitions, clearing
+ * and redrawing waveforms, and managing the timeline display.
+ * @module waveform
+ */
+
 import { cursor, drawCursor } from './cursor.js';
 
 function clearAndRedraw(canvas) {

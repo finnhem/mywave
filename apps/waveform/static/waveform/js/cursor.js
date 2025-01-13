@@ -1,4 +1,13 @@
+/**
+ * Cursor management module for the waveform viewer.
+ * Handles cursor state, movement, drawing, and time tracking.
+ * Manages cursor position across multiple canvases and updates
+ * the time display when cursor moves.
+ * @module cursor
+ */
+
 import { clearAndRedraw } from './waveform.js';
+import { getSignalValueAtTime } from './utils.js';
 
 // Cursor state
 const cursor = {
@@ -29,12 +38,21 @@ function updateCursor(cursorX) {
     const timeRange = cursor.endTime - cursor.startTime;
     cursor.currentTime = Math.round((cursor.startTime + (cursorX / width) * timeRange) * 1000000) / 1000000;
     
-    cursor.canvases.forEach(canvas => {
-        clearAndRedraw(canvas);
-        drawCursor(canvas, cursorX);
-    });
-    
+    // Update cursor display
     document.getElementById('cursor-time').textContent = `Cursor Time: ${cursor.currentTime}`;
+    
+    // Update all signal values
+    document.querySelectorAll('canvas').forEach(canvas => {
+        if (canvas.signalData && canvas.valueDisplay) {
+            canvas.valueDisplay.textContent = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
+        }
+        
+        // Redraw cursor
+        if (cursor.canvases.includes(canvas)) {
+            clearAndRedraw(canvas);
+            drawCursor(canvas, cursorX);
+        }
+    });
 }
 
 function handleCanvasClick(event) {

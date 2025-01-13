@@ -1,3 +1,12 @@
+/**
+ * Signal navigation and selection module.
+ * Handles signal selection in the UI and provides navigation
+ * through signal transitions (rising/falling edges).
+ * Contains logic for finding specific signal state changes
+ * and updating the display accordingly.
+ * @module signal
+ */
+
 import { cursor, updateCursor, showButtonFeedback } from './cursor.js';
 import { drawWaveform } from './waveform.js';
 

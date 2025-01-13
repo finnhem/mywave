@@ -1,8 +1,9 @@
 #signals .header, #signals .row {
     display: grid;
-    grid-template-columns: 300px 1fr;
+    grid-template-columns: 300px 100px 1fr;
     padding: 5px;
     align-items: center;
+    gap: 10px;
 }
 
 #signals .header {
@@ -83,4 +84,18 @@ canvas.selected {
     background-color: #ffebee;
     border-color: #ffcdd2;
     transition: all 0.2s ease;
+}
+
+.signal-value {
+    font-family: monospace;
+    color: #666;
+    padding: 5px;
+    border-radius: 3px;
+    background-color: #f8f8f8;
+    text-align: center;
+}
+
+.signal-value.no-data {
+    color: #999;
+    font-style: italic;
 } 

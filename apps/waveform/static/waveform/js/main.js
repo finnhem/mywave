@@ -1,5 +1,14 @@
+/**
+ * Main application module for the waveform viewer.
+ * Handles file upload, signal display initialization, and event setup.
+ * Coordinates between different modules to create the complete waveform
+ * viewing experience.
+ * @module main
+ */
+
 import { cursor, handleCanvasClick, moveCursorToStart, moveCursorToEnd, updateCursor } from './cursor.js';
 import { drawWaveform, drawTimeline } from './waveform.js';
+import { getSignalValueAtTime } from './utils.js';
 import {
     selectSignal,
     moveToPreviousTransition,
@@ -56,6 +65,7 @@ function uploadVCD() {
         </div>
         <div class="header">
             <div>Signals</div>
+            <div>Value</div>
             <div class="waveform-header">
                 <canvas id="timeline" width="800" height="30"></canvas>
             </div>
@@ -103,15 +113,27 @@ function uploadVCD() {
                     nameDiv.textContent = signal.name;
                     nameDiv.className = 'signal-name';
                     
+                    const valueDiv = document.createElement('div');
+                    valueDiv.className = 'signal-value';
+                    
                     // Mark signals without data
                     if (!signal.data || signal.data.length === 0) {
-                        nameDiv.classList.add('no-data');
+                        nameDiv.style.color = '#999'; // Just gray out the name without the "(no data)" text
+                        valueDiv.classList.add('no-data');
+                        valueDiv.textContent = 'no data';
+                    } else {
+                        // Initialize with value at cursor time 0
+                        valueDiv.textContent = getSignalValueAtTime(signal.data, 0);
                     }
                     
                     const waveformDiv = document.createElement('div');
                     const canvas = document.createElement('canvas');
                     canvas.width = 800;
                     canvas.height = 40;
+                    
+                    // Store references for value updates
+                    canvas.signalData = signal.data;
+                    canvas.valueDisplay = valueDiv;
                     
                     // Only add canvas to cursor tracking if it has data
                     if (signal.data && signal.data.length > 0) {
@@ -131,6 +153,7 @@ function uploadVCD() {
                     }
                     
                     row.appendChild(nameDiv);
+                    row.appendChild(valueDiv);
                     row.appendChild(waveformDiv);
                     signalsDiv.appendChild(row);
                 });
