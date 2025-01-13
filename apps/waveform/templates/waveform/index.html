@@ -65,6 +65,44 @@
             ctx.stroke();
         }
 
+        function drawTimeline(canvas, startTime, endTime) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw main horizontal line
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height/2);
+            ctx.lineTo(width, height/2);
+            ctx.stroke();
+            
+            // Draw time markers
+            ctx.fillStyle = '#666';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            
+            const timeRange = endTime - startTime;
+            const numMarkers = 10;
+            for (let i = 0; i <= numMarkers; i++) {
+                const x = (i / numMarkers) * width;
+                const time = startTime + (i / numMarkers) * timeRange;
+                
+                // Draw marker line
+                ctx.beginPath();
+                ctx.moveTo(x, height/2 - 5);
+                ctx.lineTo(x, height/2 + 5);
+                ctx.stroke();
+                
+                // Draw time label
+                ctx.fillText(time.toString(), x, height - 2);
+            }
+        }
+
         function uploadVCD() {
             const formData = new FormData(document.getElementById('upload-form'));
             const statusDiv = document.getElementById('status');
@@ -74,7 +112,9 @@
             signalsDiv.innerHTML = `
                 <div class="header">
                     <div>Signals</div>
-                    <div>Waveform</div>
+                    <div class="waveform-header">
+                        <canvas id="timeline" width="800" height="30"></canvas>
+                    </div>
                 </div>
             `;
             
@@ -98,6 +138,14 @@
                         const header = signalsDiv.querySelector('.header');
                         signalsDiv.innerHTML = '';
                         signalsDiv.appendChild(header);
+                        
+                        // Draw timeline using the time range from the first signal
+                        if (data.signals[0].data.length > 0) {
+                            const startTime = data.signals[0].data[0].time;
+                            const endTime = data.signals[0].data[data.signals[0].data.length - 1].time;
+                            const timelineCanvas = document.getElementById('timeline');
+                            drawTimeline(timelineCanvas, startTime, endTime);
+                        }
                         
                         data.signals.forEach(signal => {
                             console.log('Adding signal:', signal.name);
@@ -147,6 +195,10 @@
             border-bottom: 1px solid #ccc;
             margin-bottom: 10px;
         }
+        .waveform-header {
+            display: flex;
+            align-items: center;
+        }
         canvas {
             border: 1px solid #ccc;
             background: white;
@@ -163,7 +215,9 @@
     <div id="signals">
         <div class="header">
             <div>Signals</div>
-            <div>Waveform</div>
+            <div class="waveform-header">
+                <canvas id="timeline" width="800" height="30"></canvas>
+            </div>
         </div>
     </div>
 </body>
