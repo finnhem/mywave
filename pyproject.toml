@@ -1,0 +1,11 @@
+[project]
+name = "waveform-viewer"
+version = "0.1.0"
+description = "A Django web application for uploading, parsing, and visualizing waveform signals from VCD (Value Change Dump) files."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django",
+    "pydigitalwavetools",
+    "vcdvcd"
+]
