@@ -3,13 +3,80 @@
 <head>
     <title>Waveform Viewer</title>
     <script>
+        function drawWaveform(canvas, data) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            if (!data || data.length === 0) return;
+            
+            // Find time range
+            const startTime = data[0].time;
+            const endTime = data[data.length - 1].time;
+            const timeRange = endTime - startTime;
+            
+            // Set up drawing style
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            // Draw waveform
+            let lastX = 0;
+            let lastY = height/2;
+            
+            data.forEach((point, index) => {
+                // Scale x coordinate to canvas width
+                const x = ((point.time - startTime) / timeRange) * width;
+                
+                // Determine y coordinate based on value
+                let y;
+                if (point.value === '1' || point.value === 'b1') {
+                    y = 10;  // High level
+                } else if (point.value === '0' || point.value === 'b0') {
+                    y = height - 10;  // Low level
+                } else {
+                    y = height/2;  // Unknown/undefined level
+                }
+                
+                if (index === 0) {
+                    // Move to first point
+                    ctx.moveTo(x, y);
+                } else {
+                    // Draw vertical transition if value changed
+                    if (y !== lastY) {
+                        ctx.lineTo(x, lastY);
+                        ctx.lineTo(x, y);
+                    }
+                    // Draw horizontal line
+                    ctx.lineTo(x, y);
+                }
+                
+                lastX = x;
+                lastY = y;
+            });
+            
+            // Draw final horizontal line to end of canvas
+            ctx.lineTo(width, lastY);
+            
+            // Render the path
+            ctx.stroke();
+        }
+
         function uploadVCD() {
             const formData = new FormData(document.getElementById('upload-form'));
             const statusDiv = document.getElementById('status');
             const signalsDiv = document.getElementById('signals');
             
             statusDiv.textContent = 'Uploading...';
-            signalsDiv.innerHTML = '';
+            signalsDiv.innerHTML = `
+                <div class="header">
+                    <div>Signals</div>
+                    <div>Waveform</div>
+                </div>
+            `;
             
             fetch('', {
                 method: 'POST',
@@ -27,11 +94,33 @@
                     if (data.signals.length === 0) {
                         signalsDiv.innerHTML = '<div>No signals found in the VCD file</div>';
                     } else {
+                        // Keep the header and add signals
+                        const header = signalsDiv.querySelector('.header');
+                        signalsDiv.innerHTML = '';
+                        signalsDiv.appendChild(header);
+                        
                         data.signals.forEach(signal => {
-                            console.log('Adding signal:', signal);
-                            const div = document.createElement('div');
-                            div.textContent = signal;
-                            signalsDiv.appendChild(div);
+                            console.log('Adding signal:', signal.name);
+                            const row = document.createElement('div');
+                            row.className = 'row';
+                            
+                            // Create signal name div
+                            const nameDiv = document.createElement('div');
+                            nameDiv.textContent = signal.name;
+                            
+                            // Create canvas for waveform
+                            const waveformDiv = document.createElement('div');
+                            const canvas = document.createElement('canvas');
+                            canvas.width = 800;
+                            canvas.height = 40;
+                            waveformDiv.appendChild(canvas);
+                            
+                            row.appendChild(nameDiv);
+                            row.appendChild(waveformDiv);
+                            signalsDiv.appendChild(row);
+                            
+                            // Draw the waveform
+                            drawWaveform(canvas, signal.data);
                         });
                     }
                 } else {
@@ -46,6 +135,23 @@
             return false;
         }
     </script>
+    <style>
+        #signals .header, #signals .row {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            padding: 5px;
+            align-items: center;
+        }
+        #signals .header {
+            font-weight: bold;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            background: white;
+        }
+    </style>
 </head>
 <body>
     <form id="upload-form" onsubmit="return uploadVCD()">
@@ -54,6 +160,11 @@
         <button type="submit">Upload VCD File</button>
     </form>
     <div id="status"></div>
-    <div id="signals"></div>
+    <div id="signals">
+        <div class="header">
+            <div>Signals</div>
+            <div>Waveform</div>
+        </div>
+    </div>
 </body>
 </html> 
