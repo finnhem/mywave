@@ -3,7 +3,68 @@
 <head>
     <title>Waveform Viewer</title>
     <script>
-        function drawWaveform(canvas, data) {
+        // Global variables for cursor state
+        let globalStartTime = 0;
+        let globalEndTime = 0;
+        let globalCursorTime = 0;
+        let globalCanvases = [];
+
+        function drawCursor(canvas, cursorX) {
+            const ctx = canvas.getContext('2d');
+            const height = canvas.height;
+            
+            // Draw cursor line without redrawing the entire canvas
+            ctx.save();
+            // Use composite operation to ensure cursor is visible
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cursorX, 0);
+            ctx.lineTo(cursorX, height);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function clearAndRedraw(canvas) {
+            if (canvas.id === 'timeline') {
+                drawTimeline(canvas, globalStartTime, globalEndTime, true);
+            } else {
+                const signalData = canvas.signalData;
+                if (signalData) {
+                    drawWaveform(canvas, signalData, true);
+                }
+            }
+        }
+
+        function updateCursor(cursorX) {
+            // Calculate cursor time based on position
+            const width = document.querySelector('canvas').width;
+            const timeRange = globalEndTime - globalStartTime;
+            globalCursorTime = globalStartTime + (cursorX / width) * timeRange;
+            
+            // Redraw all canvases and cursors
+            globalCanvases.forEach(canvas => {
+                clearAndRedraw(canvas);
+                drawCursor(canvas, cursorX);
+            });
+            
+            // Update cursor time display
+            const cursorTimeDiv = document.getElementById('cursor-time');
+            cursorTimeDiv.textContent = `Cursor Time: ${globalCursorTime}`;
+        }
+
+        function handleCanvasClick(event) {
+            const canvas = event.target;
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            updateCursor(x);
+        }
+
+        function drawWaveform(canvas, data, skipCursor = false) {
+            // Store signal data for redrawing
+            canvas.signalData = data;
+            
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
@@ -63,9 +124,21 @@
             
             // Render the path
             ctx.stroke();
+
+            // Add canvas to global list if not already present
+            if (!globalCanvases.includes(canvas)) {
+                globalCanvases.push(canvas);
+                canvas.addEventListener('click', handleCanvasClick);
+            }
+
+            // Draw initial cursor if needed
+            if (!skipCursor && globalCursorTime !== undefined) {
+                const cursorX = ((globalCursorTime - startTime) / timeRange) * width;
+                drawCursor(canvas, cursorX);
+            }
         }
 
-        function drawTimeline(canvas, startTime, endTime) {
+        function drawTimeline(canvas, startTime, endTime, skipCursor = false) {
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
@@ -101,6 +174,18 @@
                 // Draw time label
                 ctx.fillText(time.toString(), x, height - 2);
             }
+
+            // Add canvas to global list if not already present
+            if (!globalCanvases.includes(canvas)) {
+                globalCanvases.push(canvas);
+                canvas.addEventListener('click', handleCanvasClick);
+            }
+
+            // Draw cursor if needed
+            if (!skipCursor && globalCursorTime !== undefined) {
+                const cursorX = ((globalCursorTime - startTime) / timeRange) * width;
+                drawCursor(canvas, cursorX);
+            }
         }
 
         function uploadVCD() {
@@ -108,8 +193,17 @@
             const statusDiv = document.getElementById('status');
             const signalsDiv = document.getElementById('signals');
             
+            // Reset global state
+            globalCanvases = [];
+            globalCursorTime = 0;
+            
             statusDiv.textContent = 'Uploading...';
             signalsDiv.innerHTML = `
+                <div id="cursor-time">Cursor Time: 0</div>
+                <div id="cursor-controls">
+                    <button onclick="moveCursorToStart()">⏮ Start</button>
+                    <button onclick="moveCursorToEnd()">End ⏭</button>
+                </div>
                 <div class="header">
                     <div>Signals</div>
                     <div class="waveform-header">
@@ -136,15 +230,19 @@
                     } else {
                         // Keep the header and add signals
                         const header = signalsDiv.querySelector('.header');
+                        const cursorTimeDiv = signalsDiv.querySelector('#cursor-time');
+                        const cursorControlsDiv = signalsDiv.querySelector('#cursor-controls');
                         signalsDiv.innerHTML = '';
+                        signalsDiv.appendChild(cursorTimeDiv);
+                        signalsDiv.appendChild(cursorControlsDiv);
                         signalsDiv.appendChild(header);
                         
-                        // Draw timeline using the time range from the first signal
+                        // Set global time range
                         if (data.signals[0].data.length > 0) {
-                            const startTime = data.signals[0].data[0].time;
-                            const endTime = data.signals[0].data[data.signals[0].data.length - 1].time;
+                            globalStartTime = data.signals[0].data[0].time;
+                            globalEndTime = data.signals[0].data[data.signals[0].data.length - 1].time;
                             const timelineCanvas = document.getElementById('timeline');
-                            drawTimeline(timelineCanvas, startTime, endTime);
+                            drawTimeline(timelineCanvas, globalStartTime, globalEndTime);
                         }
                         
                         data.signals.forEach(signal => {
@@ -170,6 +268,9 @@
                             // Draw the waveform
                             drawWaveform(canvas, signal.data);
                         });
+
+                        // Draw initial cursor at time 0
+                        updateCursor(0);
                     }
                 } else {
                     console.log('No signals in response or parsing failed');
@@ -181,6 +282,15 @@
             });
             
             return false;
+        }
+
+        function moveCursorToStart() {
+            updateCursor(0);
+        }
+
+        function moveCursorToEnd() {
+            const width = document.querySelector('canvas').width;
+            updateCursor(width);
         }
     </script>
     <style>
@@ -203,6 +313,20 @@
             border: 1px solid #ccc;
             background: white;
         }
+        #cursor-time {
+            margin: 10px 0;
+            font-weight: bold;
+            color: #666;
+        }
+        #cursor-controls {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+        }
+        #cursor-controls button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -213,6 +337,11 @@
     </form>
     <div id="status"></div>
     <div id="signals">
+        <div id="cursor-time">Cursor Time: 0</div>
+        <div id="cursor-controls">
+            <button onclick="moveCursorToStart()">⏮ Start</button>
+            <button onclick="moveCursorToEnd()">End ⏭</button>
+        </div>
         <div class="header">
             <div>Signals</div>
             <div class="waveform-header">
