@@ -263,8 +263,12 @@
                 <div id="cursor-time">Cursor Time: 0</div>
                 <div id="cursor-controls">
                     <button onclick="moveCursorToStart()">⏮ Start</button>
+                    <button onclick="findPreviousFallingEdge()">↓ Prev</button>
+                    <button onclick="findPreviousRisingEdge()">↑ Prev</button>
                     <button onclick="moveToPreviousTransition()">◀ Prev</button>
                     <button onclick="moveToNextTransition()">Next ▶</button>
+                    <button onclick="findNextRisingEdge()">Next ↑</button>
+                    <button onclick="findNextFallingEdge()">Next ↓</button>
                     <button onclick="moveCursorToEnd()">End ⏭</button>
                 </div>
                 <div class="header">
@@ -352,10 +356,18 @@
         }
 
         function moveCursorToStart() {
+            if (globalCursorTime === globalStartTime) {
+                showButtonFeedback('start');
+                return;
+            }
             updateCursor(0);
         }
 
         function moveCursorToEnd() {
+            if (globalCursorTime === globalEndTime) {
+                showButtonFeedback('end');
+                return;
+            }
             const width = document.querySelector('canvas').width;
             updateCursor(width);
         }
@@ -369,8 +381,14 @@
             // Update current index
             selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
             
+            // Check if we can move back
+            if (selectedSignal.currentIndex <= 0) {
+                showButtonFeedback('prev');
+                return;
+            }
+            
             // Move to previous transition
-            const newIndex = Math.max(0, selectedSignal.currentIndex - 1);
+            const newIndex = selectedSignal.currentIndex - 1;
             selectedSignal.currentIndex = newIndex;
             const previousTime = transitions[newIndex];
             
@@ -388,14 +406,149 @@
             // Update current index
             selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
             
+            // Check if we can move forward
+            if (selectedSignal.currentIndex >= transitions.length - 1) {
+                showButtonFeedback('next');
+                return;
+            }
+            
             // Move to next transition
-            const newIndex = Math.min(transitions.length - 1, selectedSignal.currentIndex + 1);
+            const newIndex = selectedSignal.currentIndex + 1;
             selectedSignal.currentIndex = newIndex;
             const nextTime = transitions[newIndex];
             
             const width = document.querySelector('canvas').width;
             const cursorX = ((nextTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
             updateCursor(cursorX);
+        }
+
+        function showButtonFeedback(buttonType) {
+            // Find the button by its text content
+            const buttons = document.querySelectorAll('#cursor-controls button');
+            let targetButton;
+            switch(buttonType) {
+                case 'start': targetButton = Array.from(buttons).find(b => b.textContent === '⏮ Start'); break;
+                case 'end': targetButton = Array.from(buttons).find(b => b.textContent === 'End ⏭'); break;
+                case 'prev': targetButton = Array.from(buttons).find(b => b.textContent === '◀ Prev'); break;
+                case 'next': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ▶'); break;
+                case 'prev-rise': targetButton = Array.from(buttons).find(b => b.textContent === '↑ Prev'); break;
+                case 'prev-fall': targetButton = Array.from(buttons).find(b => b.textContent === '↓ Prev'); break;
+                case 'next-rise': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ↑'); break;
+                case 'next-fall': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ↓'); break;
+            }
+            
+            if (targetButton) {
+                targetButton.classList.add('no-edge');
+                setTimeout(() => targetButton.classList.remove('no-edge'), 200);
+            }
+        }
+
+        function findPreviousRisingEdge() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            const data = selectedSignal.canvas.signalData;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Search backwards for a rising edge
+            for (let i = selectedSignal.currentIndex - 1; i >= 0; i--) {
+                const transitionTime = transitions[i];
+                // Find the data point for this transition
+                const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
+                if (dataIndex > 0 && 
+                    (data[dataIndex-1].value === '0' || data[dataIndex-1].value === 'b0') && 
+                    (data[dataIndex].value === '1' || data[dataIndex].value === 'b1')) {
+                    const width = document.querySelector('canvas').width;
+                    const cursorX = ((transitionTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+                    updateCursor(cursorX);
+                    return;
+                }
+            }
+            showButtonFeedback('prev-rise');
+        }
+
+        function findPreviousFallingEdge() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            const data = selectedSignal.canvas.signalData;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Search backwards for a falling edge
+            for (let i = selectedSignal.currentIndex - 1; i >= 0; i--) {
+                const transitionTime = transitions[i];
+                // Find the data point for this transition
+                const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
+                if (dataIndex > 0 && 
+                    (data[dataIndex-1].value === '1' || data[dataIndex-1].value === 'b1') && 
+                    (data[dataIndex].value === '0' || data[dataIndex].value === 'b0')) {
+                    const width = document.querySelector('canvas').width;
+                    const cursorX = ((transitionTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+                    updateCursor(cursorX);
+                    return;
+                }
+            }
+            showButtonFeedback('prev-fall');
+        }
+
+        function findNextRisingEdge() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            const data = selectedSignal.canvas.signalData;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Search forwards for a rising edge
+            for (let i = selectedSignal.currentIndex + 1; i < transitions.length; i++) {
+                const transitionTime = transitions[i];
+                // Find the data point for this transition
+                const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
+                if (dataIndex > 0 && 
+                    (data[dataIndex-1].value === '0' || data[dataIndex-1].value === 'b0') && 
+                    (data[dataIndex].value === '1' || data[dataIndex].value === 'b1')) {
+                    const width = document.querySelector('canvas').width;
+                    const cursorX = ((transitionTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+                    updateCursor(cursorX);
+                    return;
+                }
+            }
+            showButtonFeedback('next-rise');
+        }
+
+        function findNextFallingEdge() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            const data = selectedSignal.canvas.signalData;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Search forwards for a falling edge
+            for (let i = selectedSignal.currentIndex + 1; i < transitions.length; i++) {
+                const transitionTime = transitions[i];
+                // Find the data point for this transition
+                const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
+                if (dataIndex > 0 && 
+                    (data[dataIndex-1].value === '1' || data[dataIndex-1].value === 'b1') && 
+                    (data[dataIndex].value === '0' || data[dataIndex].value === 'b0')) {
+                    const width = document.querySelector('canvas').width;
+                    const cursorX = ((transitionTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+                    updateCursor(cursorX);
+                    return;
+                }
+            }
+            showButtonFeedback('next-fall');
         }
     </script>
     <style>
@@ -449,6 +602,11 @@
             padding: 5px 10px;
             cursor: pointer;
         }
+        #cursor-controls button.no-edge {
+            background-color: #ffebee;
+            border-color: #ffcdd2;
+            transition: all 0.2s ease;
+        }
     </style>
 </head>
 <body>
@@ -462,8 +620,12 @@
         <div id="cursor-time">Cursor Time: 0</div>
         <div id="cursor-controls">
             <button onclick="moveCursorToStart()">⏮ Start</button>
+            <button onclick="findPreviousFallingEdge()">↓ Prev</button>
+            <button onclick="findPreviousRisingEdge()">↑ Prev</button>
             <button onclick="moveToPreviousTransition()">◀ Prev</button>
             <button onclick="moveToNextTransition()">Next ▶</button>
+            <button onclick="findNextRisingEdge()">Next ↑</button>
+            <button onclick="findNextFallingEdge()">Next ↓</button>
             <button onclick="moveCursorToEnd()">End ⏭</button>
         </div>
         <div class="header">
