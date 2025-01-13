@@ -1,0 +1,66 @@
+#signals .header, #signals .row {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    padding: 5px;
+    align-items: center;
+}
+
+#signals .header {
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 10px;
+}
+
+.waveform-header {
+    display: flex;
+    align-items: center;
+}
+
+canvas {
+    border: 1px solid #ccc;
+    background: white;
+}
+
+canvas.selected {
+    border: 2px solid #0066cc;
+}
+
+.signal-name {
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.signal-name:hover {
+    background-color: #f0f0f0;
+}
+
+.signal-name.selected {
+    background-color: #e6f0ff;
+    color: #0066cc;
+    font-weight: bold;
+}
+
+#cursor-time {
+    margin: 10px 0;
+    font-weight: bold;
+    color: #666;
+}
+
+#cursor-controls {
+    margin: 10px 0;
+    display: flex;
+    gap: 10px;
+}
+
+#cursor-controls button {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+#cursor-controls button.no-edge {
+    background-color: #ffebee;
+    border-color: #ffcdd2;
+    transition: all 0.2s ease;
+} 
