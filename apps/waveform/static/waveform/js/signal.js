@@ -6,6 +6,12 @@ let selectedSignal = null;
 
 function findTransitionPoints(data) {
     const transitions = [];
+    
+    // Check if data exists and has points
+    if (!data || data.length === 0) {
+        return transitions;
+    }
+    
     transitions.push(data[0].time);
     
     for (let i = 0; i < data.length - 1; i++) {
@@ -45,6 +51,12 @@ function selectSignal(signalName, nameDiv, waveformCanvas) {
     if (selectedSignal?.nameDiv === nameDiv) {
         selectedSignal = null;
     } else {
+        // Check if signal has valid data
+        if (!waveformCanvas.signalData || waveformCanvas.signalData.length === 0) {
+            console.warn(`Signal ${signalName} has no data points`);
+            return;
+        }
+
         const transitions = findTransitionPoints(waveformCanvas.signalData);
         selectedSignal = {
             name: signalName,

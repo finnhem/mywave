@@ -30,6 +30,9 @@ canvas.selected {
     padding: 5px;
     border-radius: 3px;
     transition: background-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .signal-name:hover {
@@ -40,6 +43,23 @@ canvas.selected {
     background-color: #e6f0ff;
     color: #0066cc;
     font-weight: bold;
+}
+
+.signal-name.no-data {
+    color: #999;
+    cursor: not-allowed;
+}
+
+.signal-name.no-data:hover {
+    background-color: #fff0f0;
+}
+
+.signal-name.no-data::after {
+    content: '(no data)';
+    font-size: 0.8em;
+    color: #999;
+    font-style: italic;
+    margin-left: 10px;
 }
 
 #cursor-time {

@@ -103,20 +103,36 @@ function uploadVCD() {
                     nameDiv.textContent = signal.name;
                     nameDiv.className = 'signal-name';
                     
+                    // Mark signals without data
+                    if (!signal.data || signal.data.length === 0) {
+                        nameDiv.classList.add('no-data');
+                    }
+                    
                     const waveformDiv = document.createElement('div');
                     const canvas = document.createElement('canvas');
                     canvas.width = 800;
                     canvas.height = 40;
-                    cursor.canvases.push(canvas);
+                    
+                    // Only add canvas to cursor tracking if it has data
+                    if (signal.data && signal.data.length > 0) {
+                        cursor.canvases.push(canvas);
+                    }
+                    
                     waveformDiv.appendChild(canvas);
                     
-                    nameDiv.addEventListener('click', () => selectSignal(signal.name, nameDiv, canvas));
+                    // Only add click handler if signal has data
+                    if (signal.data && signal.data.length > 0) {
+                        nameDiv.addEventListener('click', () => selectSignal(signal.name, nameDiv, canvas));
+                        drawWaveform(canvas, signal.data);
+                    } else {
+                        // Clear the canvas for signals without data
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
                     
                     row.appendChild(nameDiv);
                     row.appendChild(waveformDiv);
                     signalsDiv.appendChild(row);
-                    
-                    drawWaveform(canvas, signal.data);
                 });
 
                 // Set up event handlers after adding new elements
