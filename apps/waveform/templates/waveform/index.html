@@ -2,8 +2,58 @@
 <html>
 <head>
     <title>Waveform Viewer</title>
+    <script>
+        function uploadVCD() {
+            const formData = new FormData(document.getElementById('upload-form'));
+            const statusDiv = document.getElementById('status');
+            const signalsDiv = document.getElementById('signals');
+            
+            statusDiv.textContent = 'Uploading...';
+            signalsDiv.innerHTML = '';
+            
+            fetch('', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Received response:', data);
+                statusDiv.textContent = data.message;
+                if (data.success && data.signals) {
+                    console.log('Processing signals:', data.signals);
+                    if (data.signals.length === 0) {
+                        signalsDiv.innerHTML = '<div>No signals found in the VCD file</div>';
+                    } else {
+                        data.signals.forEach(signal => {
+                            console.log('Adding signal:', signal);
+                            const div = document.createElement('div');
+                            div.textContent = signal;
+                            signalsDiv.appendChild(div);
+                        });
+                    }
+                } else {
+                    console.log('No signals in response or parsing failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusDiv.textContent = 'Error uploading file: ' + error;
+            });
+            
+            return false;
+        }
+    </script>
 </head>
 <body>
-    <h1>Welcome to Waveform Viewer</h1>
+    <form id="upload-form" onsubmit="return uploadVCD()">
+        {% csrf_token %}
+        <input type="file" name="vcd_file" accept=".vcd" required>
+        <button type="submit">Upload VCD File</button>
+    </form>
+    <div id="status"></div>
+    <div id="signals"></div>
 </body>
 </html> 
