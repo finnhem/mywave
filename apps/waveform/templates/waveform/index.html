@@ -8,6 +8,66 @@
         let globalEndTime = 0;
         let globalCursorTime = 0;
         let globalCanvases = [];
+        let selectedSignal = null;
+
+        function findTransitionPoints(data) {
+            const transitions = [];
+            // Always include start time
+            transitions.push(data[0].time);
+            
+            // Add points where value changes
+            for (let i = 0; i < data.length - 1; i++) {
+                if (data[i].value !== data[i+1].value) {
+                    transitions.push(data[i+1].time);
+                }
+            }
+            return transitions;
+        }
+
+        function findCurrentTransitionIndex(transitions, cursorTime) {
+            const EPSILON = 0.000001;
+            // Binary search to find the closest transition
+            let left = 0;
+            let right = transitions.length - 1;
+            
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (Math.abs(transitions[mid] - cursorTime) < EPSILON) {
+                    return mid;
+                }
+                if (transitions[mid] < cursorTime) {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+            return left - 1; // Return the index of the transition just before cursor
+        }
+
+        function selectSignal(signalName, nameDiv, waveformCanvas) {
+            // Deselect previously selected signal
+            if (selectedSignal) {
+                selectedSignal.nameDiv.classList.remove('selected');
+                selectedSignal.canvas.classList.remove('selected');
+            }
+
+            // Select new signal
+            if (selectedSignal?.nameDiv === nameDiv) {
+                // Clicking the same signal deselects it
+                selectedSignal = null;
+            } else {
+                const transitions = findTransitionPoints(waveformCanvas.signalData);
+                selectedSignal = {
+                    name: signalName,
+                    nameDiv: nameDiv,
+                    canvas: waveformCanvas,
+                    transitions: transitions,
+                    currentIndex: findCurrentTransitionIndex(transitions, globalCursorTime)
+                };
+                nameDiv.classList.add('selected');
+                waveformCanvas.classList.add('selected');
+            }
+        }
 
         function drawCursor(canvas, cursorX) {
             const ctx = canvas.getContext('2d');
@@ -41,7 +101,8 @@
             // Calculate cursor time based on position
             const width = document.querySelector('canvas').width;
             const timeRange = globalEndTime - globalStartTime;
-            globalCursorTime = globalStartTime + (cursorX / width) * timeRange;
+            // Round to 6 decimal places to avoid floating point precision issues
+            globalCursorTime = Math.round((globalStartTime + (cursorX / width) * timeRange) * 1000000) / 1000000;
             
             // Redraw all canvases and cursors
             globalCanvases.forEach(canvas => {
@@ -80,8 +141,8 @@
             const timeRange = endTime - startTime;
             
             // Set up drawing style
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+            ctx.lineWidth = canvas.classList.contains('selected') ? 3 : 2;
             ctx.beginPath();
             
             // Draw waveform
@@ -202,6 +263,8 @@
                 <div id="cursor-time">Cursor Time: 0</div>
                 <div id="cursor-controls">
                     <button onclick="moveCursorToStart()">⏮ Start</button>
+                    <button onclick="moveToPreviousTransition()">◀ Prev</button>
+                    <button onclick="moveToNextTransition()">Next ▶</button>
                     <button onclick="moveCursorToEnd()">End ⏭</button>
                 </div>
                 <div class="header">
@@ -253,6 +316,7 @@
                             // Create signal name div
                             const nameDiv = document.createElement('div');
                             nameDiv.textContent = signal.name;
+                            nameDiv.className = 'signal-name';
                             
                             // Create canvas for waveform
                             const waveformDiv = document.createElement('div');
@@ -260,6 +324,9 @@
                             canvas.width = 800;
                             canvas.height = 40;
                             waveformDiv.appendChild(canvas);
+                            
+                            // Add click handlers for selection
+                            nameDiv.addEventListener('click', () => selectSignal(signal.name, nameDiv, canvas));
                             
                             row.appendChild(nameDiv);
                             row.appendChild(waveformDiv);
@@ -292,6 +359,44 @@
             const width = document.querySelector('canvas').width;
             updateCursor(width);
         }
+
+        function moveToPreviousTransition() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Move to previous transition
+            const newIndex = Math.max(0, selectedSignal.currentIndex - 1);
+            selectedSignal.currentIndex = newIndex;
+            const previousTime = transitions[newIndex];
+            
+            const width = document.querySelector('canvas').width;
+            const cursorX = ((previousTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+            updateCursor(cursorX);
+        }
+
+        function moveToNextTransition() {
+            if (!selectedSignal) return;
+            
+            const transitions = selectedSignal.transitions;
+            if (transitions.length === 0) return;
+
+            // Update current index
+            selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, globalCursorTime);
+            
+            // Move to next transition
+            const newIndex = Math.min(transitions.length - 1, selectedSignal.currentIndex + 1);
+            selectedSignal.currentIndex = newIndex;
+            const nextTime = transitions[newIndex];
+            
+            const width = document.querySelector('canvas').width;
+            const cursorX = ((nextTime - globalStartTime) / (globalEndTime - globalStartTime)) * width;
+            updateCursor(cursorX);
+        }
     </script>
     <style>
         #signals .header, #signals .row {
@@ -312,6 +417,23 @@
         canvas {
             border: 1px solid #ccc;
             background: white;
+        }
+        canvas.selected {
+            border: 2px solid #0066cc;
+        }
+        .signal-name {
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        .signal-name:hover {
+            background-color: #f0f0f0;
+        }
+        .signal-name.selected {
+            background-color: #e6f0ff;
+            color: #0066cc;
+            font-weight: bold;
         }
         #cursor-time {
             margin: 10px 0;
@@ -340,6 +462,8 @@
         <div id="cursor-time">Cursor Time: 0</div>
         <div id="cursor-controls">
             <button onclick="moveCursorToStart()">⏮ Start</button>
+            <button onclick="moveToPreviousTransition()">◀ Prev</button>
+            <button onclick="moveToNextTransition()">Next ▶</button>
             <button onclick="moveCursorToEnd()">End ⏭</button>
         </div>
         <div class="header">
