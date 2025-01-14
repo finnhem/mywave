@@ -98,4 +98,32 @@ canvas.selected {
 .signal-value.no-data {
     color: #999;
     font-style: italic;
+}
+
+#zoom-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+#zoom-controls button {
+    padding: 5px 10px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#zoom-controls button:hover {
+    background-color: #e0e0e0;
+}
+
+#zoom-level {
+    font-family: monospace;
+    font-size: 14px;
+    min-width: 50px;
+    text-align: center;
 } 

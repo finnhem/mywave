@@ -3,13 +3,22 @@
  * Handles cursor state, movement, drawing, and time tracking.
  * Manages cursor position across multiple canvases and updates
  * the time display when cursor moves.
+ * Integrates with zoom functionality to maintain cursor visibility
+ * and proper positioning in zoomed views.
  * @module cursor
  */
 
-import { clearAndRedraw } from './waveform.js';
+import { clearAndRedraw, setZoom, zoomState, drawWaveform, drawTimeline, getVisibleTimeRange } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
 
-// Cursor state
+/**
+ * Cursor state object
+ * @type {Object}
+ * @property {number} startTime - Start time of the signal range
+ * @property {number} endTime - End time of the signal range
+ * @property {number} currentTime - Current cursor position in time
+ * @property {Array<HTMLCanvasElement>} canvases - Array of canvases to track cursor on
+ */
 const cursor = {
     startTime: 0,
     endTime: 0,
@@ -17,96 +26,62 @@ const cursor = {
     canvases: []
 };
 
-// Cursor drawing and movement
-function drawCursor(canvas, cursorX) {
-    const ctx = canvas.getContext('2d');
-    const height = canvas.height;
+/**
+ * Updates cursor position and display.
+ * Centers the zoomed view on the new cursor position.
+ * @param {number} newTime - New cursor time position
+ */
+function updateCursorDisplay(newTime) {
+    cursor.currentTime = newTime;
+    document.getElementById('cursor-time').textContent = `Cursor Time: ${newTime}`;
     
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cursorX, 0);
-    ctx.lineTo(cursorX, height);
-    ctx.stroke();
-    ctx.restore();
-}
-
-function updateCursor(cursorX) {
-    const width = document.querySelector('canvas').width;
-    const timeRange = cursor.endTime - cursor.startTime;
-    cursor.currentTime = Math.round((cursor.startTime + (cursorX / width) * timeRange) * 1000000) / 1000000;
+    // Update zoom center
+    zoomState.center = newTime;
     
-    // Update cursor display
-    document.getElementById('cursor-time').textContent = `Cursor Time: ${cursor.currentTime}`;
-    
-    // Update all signal values
-    document.querySelectorAll('canvas').forEach(canvas => {
-        if (canvas.signalData && canvas.valueDisplay) {
-            canvas.valueDisplay.textContent = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
-        }
-        
-        // Redraw cursor
-        if (cursor.canvases.includes(canvas)) {
-            clearAndRedraw(canvas);
-            drawCursor(canvas, cursorX);
+    // Force redraw of all canvases
+    cursor.canvases.forEach(canvas => {
+        clearAndRedraw(canvas);
+        if (canvas.valueDisplay) {
+            canvas.valueDisplay.textContent = getSignalValueAtTime(canvas.signalData, newTime);
         }
     });
 }
 
+/**
+ * Handles canvas click events for cursor positioning.
+ * Converts click position to time value based on visible time range.
+ * @param {MouseEvent} event - Click event object
+ */
 function handleCanvasClick(event) {
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
-    updateCursor(x);
+    const width = canvas.width;
+    
+    // Get the visible time range
+    const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
+    const timeRange = visibleRange.end - visibleRange.start;
+    
+    // Calculate time based on visible range
+    const clickTime = visibleRange.start + (x / width) * timeRange;
+    
+    // Ensure clickTime is within bounds
+    const boundedTime = Math.max(cursor.startTime, Math.min(cursor.endTime, clickTime));
+    updateCursorDisplay(boundedTime);
 }
 
-// Navigation functions
 function moveCursorToStart() {
-    if (cursor.currentTime === cursor.startTime) {
-        showButtonFeedback('start');
-        return;
-    }
-    updateCursor(0);
+    updateCursorDisplay(cursor.startTime);
 }
 
 function moveCursorToEnd() {
-    if (cursor.currentTime === cursor.endTime) {
-        showButtonFeedback('end');
-        return;
-    }
-    const width = document.querySelector('canvas').width;
-    updateCursor(width);
+    updateCursorDisplay(cursor.endTime);
 }
 
-function showButtonFeedback(buttonType) {
-    const buttons = document.querySelectorAll('#cursor-controls button');
-    let targetButton;
-    switch(buttonType) {
-        case 'start': targetButton = Array.from(buttons).find(b => b.textContent === '⏮ Start'); break;
-        case 'end': targetButton = Array.from(buttons).find(b => b.textContent === 'End ⏭'); break;
-        case 'prev': targetButton = Array.from(buttons).find(b => b.textContent === '◀ Prev'); break;
-        case 'next': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ▶'); break;
-        case 'prev-rise': targetButton = Array.from(buttons).find(b => b.textContent === '↑ Prev'); break;
-        case 'prev-fall': targetButton = Array.from(buttons).find(b => b.textContent === '↓ Prev'); break;
-        case 'next-rise': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ↑'); break;
-        case 'next-fall': targetButton = Array.from(buttons).find(b => b.textContent === 'Next ↓'); break;
-    }
-    
-    if (targetButton) {
-        targetButton.classList.add('no-edge');
-        setTimeout(() => targetButton.classList.remove('no-edge'), 200);
-    }
-}
-
-// Export cursor object and functions
 export {
     cursor,
-    drawCursor,
-    updateCursor,
     handleCanvasClick,
     moveCursorToStart,
     moveCursorToEnd,
-    showButtonFeedback
+    updateCursorDisplay
 }; 

@@ -6,8 +6,8 @@
  * @module main
  */
 
-import { cursor, handleCanvasClick, moveCursorToStart, moveCursorToEnd, updateCursor } from './cursor.js';
-import { drawWaveform, drawTimeline } from './waveform.js';
+import { cursor, handleCanvasClick, moveCursorToStart, moveCursorToEnd } from './cursor.js';
+import { drawWaveform, drawTimeline, clearAndRedraw, setZoom, zoomState } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
 import {
     selectSignal,
@@ -18,6 +18,25 @@ import {
     findNextRisingEdge,
     findNextFallingEdge
 } from './signal.js';
+
+function handleZoomIn() {
+    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
+    setZoom(zoomState.level * 1.5, centerTime);
+    updateZoomDisplay();
+}
+
+function handleZoomOut() {
+    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
+    setZoom(zoomState.level / 1.5, centerTime);
+    updateZoomDisplay();
+}
+
+function updateZoomDisplay() {
+    const zoomLevelElement = document.getElementById('zoom-level');
+    if (zoomLevelElement) {
+        zoomLevelElement.textContent = `${zoomState.level.toFixed(1)}x`;
+    }
+}
 
 function setupEventHandlers() {
     // Set up button click handlers
@@ -36,9 +55,33 @@ function setupEventHandlers() {
         button.onclick = buttonHandlers[button.textContent];
     });
 
+    // Set up zoom controls
+    const zoomIn = document.getElementById('zoom-in');
+    const zoomOut = document.getElementById('zoom-out');
+    if (zoomIn) zoomIn.onclick = handleZoomIn;
+    if (zoomOut) zoomOut.onclick = handleZoomOut;
+
     // Set up canvas click handlers
     document.querySelectorAll('canvas').forEach(canvas => {
         canvas.addEventListener('click', handleCanvasClick);
+    });
+
+    // Add wheel zoom support
+    document.querySelectorAll('canvas').forEach(canvas => {
+        canvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const timeRange = cursor.endTime - cursor.startTime;
+            const centerTime = cursor.startTime + (x / canvas.width) * timeRange;
+            
+            if (event.deltaY < 0) {
+                setZoom(zoomState.level * 1.1, centerTime);
+            } else {
+                setZoom(zoomState.level / 1.1, centerTime);
+            }
+            updateZoomDisplay();
+        });
     });
 }
 
@@ -62,6 +105,11 @@ function uploadVCD() {
             <button>Next ↑</button>
             <button>Next ↓</button>
             <button>End ⏭</button>
+        </div>
+        <div id="zoom-controls">
+            <button id="zoom-out">🔍-</button>
+            <span id="zoom-level">1x</span>
+            <button id="zoom-in">🔍+</button>
         </div>
         <div class="header">
             <div>Signals</div>
@@ -91,17 +139,26 @@ function uploadVCD() {
                 const header = signalsDiv.querySelector('.header');
                 const cursorTimeDiv = signalsDiv.querySelector('#cursor-time');
                 const cursorControlsDiv = signalsDiv.querySelector('#cursor-controls');
+                const zoomControlsDiv = signalsDiv.querySelector('#zoom-controls');
                 signalsDiv.innerHTML = '';
                 signalsDiv.appendChild(cursorTimeDiv);
                 signalsDiv.appendChild(cursorControlsDiv);
+                signalsDiv.appendChild(zoomControlsDiv);
                 signalsDiv.appendChild(header);
                 
                 if (data.signals[0].data.length > 0) {
                     cursor.startTime = data.signals[0].data[0].time;
                     cursor.endTime = data.signals[0].data[data.signals[0].data.length - 1].time;
+                    cursor.visibleStartTime = cursor.startTime;
+                    cursor.visibleEndTime = cursor.endTime;
+                    
+                    // Initialize zoom state
+                    zoomState.level = 1;
+                    zoomState.center = cursor.startTime + (cursor.endTime - cursor.startTime) / 2;
+                    
                     const timelineCanvas = document.getElementById('timeline');
                     cursor.canvases.push(timelineCanvas);
-                    drawTimeline(timelineCanvas, cursor.startTime, cursor.endTime);
+                    drawTimeline(timelineCanvas, cursor.visibleStartTime, cursor.visibleEndTime);
                 }
                 
                 data.signals.forEach(signal => {
@@ -160,7 +217,13 @@ function uploadVCD() {
 
                 // Set up event handlers after adding new elements
                 setupEventHandlers();
-                updateCursor(0);
+                
+                // Set initial cursor position
+                cursor.currentTime = 0;
+                document.querySelectorAll('canvas').forEach(canvas => {
+                    clearAndRedraw(canvas);
+                });
+                document.getElementById('cursor-time').textContent = `Cursor Time: ${cursor.currentTime}`;
             }
         } else {
             console.log('No signals in response or parsing failed');

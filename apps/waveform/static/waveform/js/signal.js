@@ -4,225 +4,193 @@
  * through signal transitions (rising/falling edges).
  * Contains logic for finding specific signal state changes
  * and updating the display accordingly.
+ * Supports navigation in zoomed views, ensuring cursor visibility
+ * and proper view centering when moving between transitions.
  * @module signal
  */
 
-import { cursor, updateCursor, showButtonFeedback } from './cursor.js';
-import { drawWaveform } from './waveform.js';
+import { cursor, updateCursorDisplay } from './cursor.js';
+import { drawWaveform, zoomState } from './waveform.js';
 
-// Signal state
-let selectedSignal = null;
+/**
+ * Selects a signal and updates its visual highlighting.
+ * @param {string} name - Signal name
+ * @param {HTMLElement} nameDiv - DOM element containing signal name
+ * @param {HTMLCanvasElement} canvas - Canvas element displaying the signal
+ */
+function selectSignal(name, nameDiv, canvas) {
+    // Clear previous selection
+    document.querySelectorAll('.signal-name.selected').forEach(div => div.classList.remove('selected'));
+    document.querySelectorAll('canvas.selected').forEach(c => c.classList.remove('selected'));
+    
+    // Set new selection
+    nameDiv.classList.add('selected');
+    canvas.classList.add('selected');
+    
+    // Redraw all canvases to update highlighting
+    document.querySelectorAll('canvas').forEach(c => {
+        if (c.id !== 'timeline' && c.signalData) {
+            drawWaveform(c, c.signalData, false);
+        }
+    });
+}
 
-function findTransitionPoints(data) {
-    const transitions = [];
-    
-    // Check if data exists and has points
-    if (!data || data.length === 0) {
-        return transitions;
-    }
-    
-    transitions.push(data[0].time);
-    
+/**
+ * Finds the next transition point after current time.
+ * In zoomed views, ensures the view follows the cursor.
+ * @param {Array} data - Signal data points
+ * @param {number} currentTime - Current cursor time
+ * @returns {number|null} Time of next transition or null if none found
+ */
+function findNextTransition(data, currentTime) {
+    // First check for any transitions after current time
     for (let i = 0; i < data.length - 1; i++) {
-        if (data[i].value !== data[i+1].value) {
-            transitions.push(data[i+1].time);
+        if (data[i].time > currentTime) {
+            return data[i].time;
         }
     }
-    return transitions;
+    
+    // If no transitions found and we're not at the end, return the end time
+    if (currentTime < data[data.length - 1].time) {
+        return data[data.length - 1].time;
+    }
+    
+    return null;
 }
 
-function findCurrentTransitionIndex(transitions, cursorTime) {
-    const EPSILON = 0.000001;
-    let left = 0;
-    let right = transitions.length - 1;
+/**
+ * Finds the previous transition point before current time.
+ * In zoomed views, ensures the view follows the cursor.
+ * @param {Array} data - Signal data points
+ * @param {number} currentTime - Current cursor time
+ * @returns {number|null} Time of previous transition or null if none found
+ */
+function findPreviousTransition(data, currentTime) {
+    // Special case: if we're at the start time but zoomed in,
+    // we still want to move the view to the start
+    if (currentTime === data[0].time && zoomState.level > 1) {
+        return data[0].time;
+    }
     
-    while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        if (Math.abs(transitions[mid] - cursorTime) < EPSILON) {
-            return mid;
-        }
-        if (transitions[mid] < cursorTime) {
-            left = mid + 1;
-        } else {
-            right = mid - 1;
+    // First check for any transitions before current time
+    for (let i = data.length - 1; i >= 0; i--) {
+        if (data[i].time < currentTime) {
+            return data[i].time;
         }
     }
-    return left - 1;
+    
+    // If no transitions found and we're not at the start, return the start time
+    if (currentTime > data[0].time) {
+        return data[0].time;
+    }
+    
+    return null;
 }
 
-function selectSignal(signalName, nameDiv, waveformCanvas) {
-    if (selectedSignal) {
-        selectedSignal.nameDiv.classList.remove('selected');
-        selectedSignal.canvas.classList.remove('selected');
-        drawWaveform(selectedSignal.canvas, selectedSignal.canvas.signalData);
-    }
-
-    if (selectedSignal?.nameDiv === nameDiv) {
-        selectedSignal = null;
-    } else {
-        // Check if signal has valid data
-        if (!waveformCanvas.signalData || waveformCanvas.signalData.length === 0) {
-            console.warn(`Signal ${signalName} has no data points`);
-            return;
+function findNextEdge(data, currentTime, type) {
+    // First check for any edges after current time
+    for (let i = 0; i < data.length - 1; i++) {
+        if (data[i].time > currentTime) {
+            if ((type === 'rising' && (data[i].value === '1' || data[i].value === 'b1') && (data[i-1].value === '0' || data[i-1].value === 'b0')) ||
+                (type === 'falling' && (data[i].value === '0' || data[i].value === 'b0') && (data[i-1].value === '1' || data[i-1].value === 'b1'))) {
+                return data[i].time;
+            }
         }
-
-        const transitions = findTransitionPoints(waveformCanvas.signalData);
-        selectedSignal = {
-            name: signalName,
-            nameDiv: nameDiv,
-            canvas: waveformCanvas,
-            transitions: transitions,
-            currentIndex: findCurrentTransitionIndex(transitions, cursor.currentTime)
-        };
-        nameDiv.classList.add('selected');
-        waveformCanvas.classList.add('selected');
-        drawWaveform(waveformCanvas, waveformCanvas.signalData);
     }
+    
+    // If no edges found and we're not at the end, return the end time
+    if (currentTime < data[data.length - 1].time) {
+        return data[data.length - 1].time;
+    }
+    
+    return null;
 }
 
-// Transition navigation
-function moveToPreviousTransition() {
-    if (!selectedSignal) return;
-    
-    const transitions = selectedSignal.transitions;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    if (selectedSignal.currentIndex <= 0) {
-        showButtonFeedback('prev');
-        return;
+function findPreviousEdge(data, currentTime, type) {
+    // Special case: if we're at the start time but zoomed in,
+    // we still want to move the view to the start
+    if (currentTime === data[0].time && zoomState.level > 1) {
+        return data[0].time;
     }
     
-    const newIndex = selectedSignal.currentIndex - 1;
-    selectedSignal.currentIndex = newIndex;
-    const previousTime = transitions[newIndex];
+    for (let i = data.length - 1; i > 0; i--) {
+        if (data[i].time < currentTime) {
+            if ((type === 'rising' && (data[i].value === '1' || data[i].value === 'b1') && (data[i-1].value === '0' || data[i-1].value === 'b0')) ||
+                (type === 'falling' && (data[i].value === '0' || data[i].value === 'b0') && (data[i-1].value === '1' || data[i-1].value === 'b1'))) {
+                return data[i].time;
+            }
+        }
+    }
     
-    const width = document.querySelector('canvas').width;
-    const cursorX = ((previousTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-    updateCursor(cursorX);
+    // If no edges found and we're not at the start, return the start time
+    if (currentTime > data[0].time) {
+        return data[0].time;
+    }
+    
+    return null;
 }
 
 function moveToNextTransition() {
-    if (!selectedSignal) return;
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
     
-    const transitions = selectedSignal.transitions;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    if (selectedSignal.currentIndex >= transitions.length - 1) {
-        showButtonFeedback('next');
-        return;
+    const nextTime = findNextTransition(selectedCanvas.signalData, cursor.currentTime);
+    if (nextTime !== null) {
+        updateCursorDisplay(nextTime);
     }
-    
-    const newIndex = selectedSignal.currentIndex + 1;
-    selectedSignal.currentIndex = newIndex;
-    const nextTime = transitions[newIndex];
-    
-    const width = document.querySelector('canvas').width;
-    const cursorX = ((nextTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-    updateCursor(cursorX);
 }
 
-function findPreviousRisingEdge() {
-    if (!selectedSignal) return;
+function moveToPreviousTransition() {
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
     
-    const transitions = selectedSignal.transitions;
-    const data = selectedSignal.canvas.signalData;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    for (let i = selectedSignal.currentIndex - 1; i >= 0; i--) {
-        const transitionTime = transitions[i];
-        const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
-        if (dataIndex > 0 && 
-            (data[dataIndex-1].value === '0' || data[dataIndex-1].value === 'b0') && 
-            (data[dataIndex].value === '1' || data[dataIndex].value === 'b1')) {
-            const width = document.querySelector('canvas').width;
-            const cursorX = ((transitionTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-            updateCursor(cursorX);
-            return;
-        }
+    const prevTime = findPreviousTransition(selectedCanvas.signalData, cursor.currentTime);
+    if (prevTime !== null) {
+        updateCursorDisplay(prevTime);
     }
-    showButtonFeedback('prev-rise');
-}
-
-function findPreviousFallingEdge() {
-    if (!selectedSignal) return;
-    
-    const transitions = selectedSignal.transitions;
-    const data = selectedSignal.canvas.signalData;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    for (let i = selectedSignal.currentIndex - 1; i >= 0; i--) {
-        const transitionTime = transitions[i];
-        const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
-        if (dataIndex > 0 && 
-            (data[dataIndex-1].value === '1' || data[dataIndex-1].value === 'b1') && 
-            (data[dataIndex].value === '0' || data[dataIndex].value === 'b0')) {
-            const width = document.querySelector('canvas').width;
-            const cursorX = ((transitionTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-            updateCursor(cursorX);
-            return;
-        }
-    }
-    showButtonFeedback('prev-fall');
 }
 
 function findNextRisingEdge() {
-    if (!selectedSignal) return;
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
     
-    const transitions = selectedSignal.transitions;
-    const data = selectedSignal.canvas.signalData;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    for (let i = selectedSignal.currentIndex + 1; i < transitions.length; i++) {
-        const transitionTime = transitions[i];
-        const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
-        if (dataIndex > 0 && 
-            (data[dataIndex-1].value === '0' || data[dataIndex-1].value === 'b0') && 
-            (data[dataIndex].value === '1' || data[dataIndex].value === 'b1')) {
-            const width = document.querySelector('canvas').width;
-            const cursorX = ((transitionTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-            updateCursor(cursorX);
-            return;
-        }
+    const nextTime = findNextEdge(selectedCanvas.signalData, cursor.currentTime, 'rising');
+    if (nextTime !== null) {
+        updateCursorDisplay(nextTime);
     }
-    showButtonFeedback('next-rise');
 }
 
 function findNextFallingEdge() {
-    if (!selectedSignal) return;
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
     
-    const transitions = selectedSignal.transitions;
-    const data = selectedSignal.canvas.signalData;
-    if (transitions.length === 0) return;
-
-    selectedSignal.currentIndex = findCurrentTransitionIndex(transitions, cursor.currentTime);
-    
-    for (let i = selectedSignal.currentIndex + 1; i < transitions.length; i++) {
-        const transitionTime = transitions[i];
-        const dataIndex = data.findIndex(p => Math.abs(p.time - transitionTime) < 0.000001);
-        if (dataIndex > 0 && 
-            (data[dataIndex-1].value === '1' || data[dataIndex-1].value === 'b1') && 
-            (data[dataIndex].value === '0' || data[dataIndex].value === 'b0')) {
-            const width = document.querySelector('canvas').width;
-            const cursorX = ((transitionTime - cursor.startTime) / (cursor.endTime - cursor.startTime)) * width;
-            updateCursor(cursorX);
-            return;
-        }
+    const nextTime = findNextEdge(selectedCanvas.signalData, cursor.currentTime, 'falling');
+    if (nextTime !== null) {
+        updateCursorDisplay(nextTime);
     }
-    showButtonFeedback('next-fall');
+}
+
+function findPreviousRisingEdge() {
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
+    
+    const prevTime = findPreviousEdge(selectedCanvas.signalData, cursor.currentTime, 'rising');
+    if (prevTime !== null) {
+        updateCursorDisplay(prevTime);
+    }
+}
+
+function findPreviousFallingEdge() {
+    const selectedCanvas = document.querySelector('canvas.selected');
+    if (!selectedCanvas || !selectedCanvas.signalData) return;
+    
+    const prevTime = findPreviousEdge(selectedCanvas.signalData, cursor.currentTime, 'falling');
+    if (prevTime !== null) {
+        updateCursorDisplay(prevTime);
+    }
 }
 
 export {
-    selectedSignal,
     selectSignal,
     moveToPreviousTransition,
     moveToNextTransition,
