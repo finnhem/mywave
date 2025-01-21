@@ -12,27 +12,40 @@
         <button type="submit">Upload VCD File</button>
     </form>
     <div id="status"></div>
-    <div id="signals">
-        <div id="cursor-time">Cursor Time: 0</div>
-        <div id="cursor-controls">
-            <button>⏮ Start</button>
-            <button>↓ Prev</button>
-            <button>↑ Prev</button>
-            <button>◀ Prev</button>
-            <button>Next ▶</button>
-            <button>Next ↑</button>
-            <button>Next ↓</button>
-            <button>End ⏭</button>
+    <div id="workspace">
+        <div id="signal-selector">
+            <div class="tree-controls" style="display: none;">
+                <button id="select-all">Select All</button>
+                <button id="deselect-all">Deselect All</button>
+            </div>
+            <div id="signal-tree"></div>
         </div>
-        <div id="zoom-controls">
-            <button id="zoom-out">🔍-</button>
-            <span id="zoom-level">1x</span>
-            <button id="zoom-in">🔍+</button>
-        </div>
-        <div class="header">
-            <div>Signals</div>
-            <div class="waveform-header">
-                <canvas id="timeline" width="800" height="30"></canvas>
+        <div id="signals">
+            <div id="cursor-time">Cursor Time: 0</div>
+            <div id="cursor-controls">
+                <button>⏮ Start</button>
+                <button>↓ Prev</button>
+                <button>↑ Prev</button>
+                <button>◀ Prev</button>
+                <button>Next ▶</button>
+                <button>Next ↑</button>
+                <button>Next ↓</button>
+                <button>End ⏭</button>
+            </div>
+            <div id="zoom-controls">
+                <button id="zoom-out">🔍-</button>
+                <span id="zoom-level">1x</span>
+                <button id="zoom-in">🔍+</button>
+            </div>
+            <div class="signals-scroll-container">
+                <div class="header">
+                    <div>Signals</div>
+                    <div>Value</div>
+                    <div class="waveform-header">
+                        <canvas id="timeline" width="800" height="30"></canvas>
+                    </div>
+                </div>
+                <div id="waveform-container"></div>
             </div>
         </div>
     </div>
