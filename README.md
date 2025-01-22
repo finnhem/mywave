@@ -62,7 +62,12 @@ We use uv for deterministic dependency management:
 python manage.py migrate
 ```
 
-2. Start the development server:
+2. Run Tailwind CSS:
+```bash
+python manage.py tailwind start
+```
+
+3. Start the development server:
 ```bash
 python manage.py runserver
 ```

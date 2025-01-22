@@ -9,9 +9,11 @@ description = "A Django web application for uploading, parsing, and visualizing 
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cookiecutter>=2.6.0",
     "django",
+    "django-tailwind[reload]>=3.8.0",
     "pyDigitalWaveTools",
-    "vcdvcd"
+    "vcdvcd",
 ]
 
 [tool.setuptools]
