@@ -7,7 +7,7 @@
     overflow: hidden;
 }
 
-#signal-selector {
+#signal-selector-container {
     border: 1px solid #ccc;
     border-radius: 4px;
     background: white;
@@ -22,14 +22,14 @@
     padding: 10px;
 }
 
-#signals {
+#waveform-viewer-container {
     display: flex;
     flex-direction: column;
     overflow: hidden;
     position: relative;
 }
 
-.signals-scroll-container {
+.waveform-display-container {
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -38,7 +38,7 @@
     min-width: fit-content;
 }
 
-#signals .header {
+#waveform-viewer-container .header-row {
     display: grid;
     grid-template-columns: 300px 100px 1fr;
     padding: 5px;
@@ -53,7 +53,7 @@
     min-width: fit-content;
 }
 
-#signals .row {
+#waveform-viewer-container .row {
     display: grid;
     grid-template-columns: 300px 100px 1fr;
     padding: 5px;
@@ -62,7 +62,7 @@
     min-width: fit-content;
 }
 
-.waveform-header {
+.header-timeline {
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -197,7 +197,7 @@ canvas.selected {
 }
 
 /* Select/Deselect All controls */
-.tree-controls {
+.signal-selector-controls {
     display: flex;
     gap: 10px;
     padding: 10px;
@@ -205,7 +205,7 @@ canvas.selected {
     border-bottom: 1px solid #ddd;
 }
 
-.tree-controls button {
+.signal-selector-controls button {
     padding: 5px 10px;
     cursor: pointer;
     background: white;
@@ -215,7 +215,7 @@ canvas.selected {
     flex: 1;
 }
 
-.tree-controls button:hover {
+.signal-selector-controls button:hover {
     background: #e6f0ff;
     border-color: #0066cc;
 }
@@ -243,4 +243,14 @@ canvas.selected {
     background-color: #e6f0ff;
     color: #0066cc;
     font-weight: bold;
-} 
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;  /* Adds space between elements */
+}
+
+#file-upload-status {
+    margin-right: auto;  /* Pushes the status to the right */
+}

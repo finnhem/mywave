@@ -8,40 +8,44 @@
 <body>
     <form id="upload-form">
         {% csrf_token %}
-        <input type="file" name="vcd_file" accept=".vcd" required>
-        <button type="submit">Upload VCD File</button>
+        <div class="form-row">
+            <input type="file" name="vcd_file" accept=".vcd" required>
+            <button type="submit">Upload VCD file</button>
+            <div id="file-upload-status"></div>
+        </div>
     </form>
-    <div id="status"></div>
     <div id="workspace">
-        <div id="signal-selector">
-            <div class="tree-controls" style="display: none;">
+        <div id="signal-selector-container">
+            <div class="signal-selector-controls">
                 <button id="select-all">Select All</button>
                 <button id="deselect-all">Deselect All</button>
             </div>
             <div id="signal-tree"></div>
         </div>
-        <div id="signals">
-            <div id="cursor-time">Cursor Time: 0</div>
-            <div id="cursor-controls">
-                <button>⏮ Start</button>
-                <button>↓ Prev</button>
-                <button>↑ Prev</button>
-                <button>◀ Prev</button>
-                <button>Next ▶</button>
-                <button>Next ↑</button>
-                <button>Next ↓</button>
-                <button>End ⏭</button>
+        <div id="waveform-viewer-container">
+            <div id="waveform-controls-container">
+                <div id="cursor-time">Cursor Time: 0</div>
+                <div id="cursor-controls">
+                    <button>⏮ Start</button>
+                    <button>↓ Prev</button>
+                    <button>↑ Prev</button>
+                    <button>◀ Prev</button>
+                    <button>Next ▶</button>
+                    <button>Next ↑</button>
+                    <button>Next ↓</button>
+                    <button>End ⏭</button>
+                </div>
+                <div id="zoom-controls">
+                    <button id="zoom-out">🔍-</button>
+                    <span id="zoom-level">1x</span>
+                    <button id="zoom-in">🔍+</button>
+                </div>
             </div>
-            <div id="zoom-controls">
-                <button id="zoom-out">🔍-</button>
-                <span id="zoom-level">1x</span>
-                <button id="zoom-in">🔍+</button>
-            </div>
-            <div class="signals-scroll-container">
-                <div class="header">
+            <div class="waveform-display-container">
+                <div class="header-row">
                     <div>Signals</div>
                     <div>Value</div>
-                    <div class="waveform-header">
+                    <div class="header-timeline">
                         <canvas id="timeline" width="800" height="30"></canvas>
                     </div>
                 </div>

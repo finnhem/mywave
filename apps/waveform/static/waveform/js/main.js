@@ -328,9 +328,6 @@ function processSignals(signals) {
     signalTree.innerHTML = '';
     signalTree.appendChild(treeElement);
     
-    // Show tree controls
-    document.querySelector('.tree-controls').style.display = '';
-    
     // Create signal rows
     const waveformContainer = document.getElementById('waveform-container');
     waveformContainer.innerHTML = '';
@@ -356,7 +353,7 @@ function processSignals(signals) {
 
 function uploadVCD() {
     const form = document.getElementById('upload-form');
-    const status = document.getElementById('status');
+    const status = document.getElementById('file-upload-status');
     
     form.onsubmit = async (e) => {
         e.preventDefault();
