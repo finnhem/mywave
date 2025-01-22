@@ -154,9 +154,13 @@ function createSignalRow(signal) {
     
     // Create waveform cell
     const waveformDiv = document.createElement('div');
+    waveformDiv.className = 'waveform-canvas-container';
+    
     const canvas = document.createElement('canvas');
-    canvas.width = 800;
+    // Set a high resolution for the canvas
+    canvas.width = 1200; // Internal resolution
     canvas.height = 40;
+    waveformDiv.appendChild(canvas);
     
     // Store references for value updates
     canvas.signalData = signal.data;
@@ -187,8 +191,6 @@ function createSignalRow(signal) {
         };
     }
 
-    waveformDiv.appendChild(canvas);
-    
     // Only add click handler if signal has data
     if (signal.data && signal.data.length > 0) {
         drawWaveform(canvas, signal.data);
@@ -268,11 +270,11 @@ function createTreeNode(node, level = 0) {
 }
 
 function updateDisplayedSignals() {
-    const waveformContainer = document.getElementById('waveform-container');
+    const waveformRowsContainer = document.getElementById('waveform-rows-container');
     const signalTree = document.getElementById('signal-tree');
     
     // Clear existing signals
-    waveformContainer.innerHTML = '';
+    waveformRowsContainer.innerHTML = '';
     
     // Reset cursor canvases to only include timeline
     const timeline = document.getElementById('timeline');
@@ -302,7 +304,7 @@ function updateDisplayedSignals() {
     if (selectedSignals.length > 0) {
         selectedSignals.forEach(signal => {
             const row = createSignalRow(signal);
-            waveformContainer.appendChild(row);
+            waveformRowsContainer.appendChild(row);
         });
     }
     
@@ -329,12 +331,12 @@ function processSignals(signals) {
     signalTree.appendChild(treeElement);
     
     // Create signal rows
-    const waveformContainer = document.getElementById('waveform-container');
-    waveformContainer.innerHTML = '';
+    const waveformRowsContainer = document.getElementById('waveform-rows-container');
+    waveformRowsContainer.innerHTML = '';
     
     signals.forEach(signal => {
         const row = createSignalRow(signal);
-        waveformContainer.appendChild(row);
+        waveformRowsContainer.appendChild(row);
     });
     
     // Initialize timeline
