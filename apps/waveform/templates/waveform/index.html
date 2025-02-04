@@ -5,53 +5,96 @@
 <head>
     <title>Waveform Viewer</title>
     {% tailwind_css %}
-    <link rel="stylesheet" href="{% static 'waveform/css/styles.css' %}">
+    <style>
+        .row {
+            display: grid;
+            grid-template-columns: 300px 100px 1fr;
+            gap: 10px;
+            align-items: center;
+            min-width: fit-content;
+            padding: 6px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .signal-name {
+            padding: 0 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .signal-value {
+            text-align: center;
+            font-family: monospace;
+        }
+        .waveform-canvas-container {
+            overflow: hidden;
+            min-width: 0;
+        }
+        .waveform-canvas-container canvas {
+            width: 100%;
+            height: 40px;
+            display: block;
+        }
+        #waveform-display-container .header-row {
+            display: grid;
+            grid-template-columns: 300px 100px 1fr;
+            gap: 10px;
+            align-items: center;
+            padding: 6px;
+            font-weight: bold;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            min-width: fit-content;
+        }
+    </style>
 </head>
-<body>
-    <form id="upload-form">
+<body class="p-4">
+    <form id="upload-form" class="mb-4">
         {% csrf_token %}
-        <div class="form-row">
-            <input type="file" name="vcd_file" accept=".vcd" required>
-            <button type="submit">Upload VCD file</button>
-            <div id="file-upload-status"></div>
+        <div class="flex items-center gap-4">
+            <input type="file" name="vcd_file" accept=".vcd" required class="file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Upload VCD file</button>
+            <div id="file-upload-status" class="ml-auto"></div>
         </div>
     </form>
-    <div id="workspace">
-        <div id="signal-selector-container">
-            <div class="signal-selector-controls">
-                <button id="select-all">Select All</button>
-                <button id="deselect-all">Deselect All</button>
+    <div id="workspace" class="grid grid-cols-[300px_1fr] gap-5 h-[calc(100vh-100px)] p-2.5 overflow-hidden">
+        <div id="signal-selector-container" class="border border-gray-200 rounded bg-white flex flex-col overflow-hidden">
+            <div class="signal-selector-controls flex gap-2.5 p-2.5 bg-gray-50 border-b border-gray-200">
+                <button id="select-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Select All</button>
+                <button id="deselect-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Deselect All</button>
             </div>
-            <div id="signal-tree"></div>
+            <div id="signal-tree" class="overflow-y-auto flex-grow p-2.5"></div>
         </div>
-        <div id="waveform-viewer-container">
+        <div id="waveform-viewer-container" class="flex flex-col overflow-hidden relative">
             <div id="waveform-controls-container">
-                <div id="cursor-time">Cursor Time: 0</div>
-                <div id="cursor-controls">
-                    <button>⏮ Start</button>
-                    <button>↓ Prev</button>
-                    <button>↑ Prev</button>
-                    <button>◀ Prev</button>
-                    <button>Next ▶</button>
-                    <button>Next ↑</button>
-                    <button>Next ↓</button>
-                    <button>End ⏭</button>
+                <div id="cursor-time" class="my-2.5 font-bold text-gray-600">Cursor Time: 0</div>
+                <div id="cursor-controls" class="flex gap-2.5 my-2.5">
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">⏮ Start</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">↓ Prev</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">↑ Prev</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">◀ Prev</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">Next ▶</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">Next ↑</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">Next ↓</button>
+                    <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">End ⏭</button>
                 </div>
-                <div id="zoom-controls">
-                    <button id="zoom-out">🔍-</button>
-                    <span id="zoom-level">1x</span>
-                    <button id="zoom-in">🔍+</button>
+                <div id="zoom-controls" class="flex items-center justify-center gap-2.5 my-2.5">
+                    <button id="zoom-out" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍-</button>
+                    <span id="zoom-level" class="font-mono text-sm min-w-[50px] text-center">1x</span>
+                    <button id="zoom-in" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍+</button>
                 </div>
             </div>
-            <div id="waveform-display-container">
-                <div class="header-row">
+            <div id="waveform-display-container" class="flex flex-col overflow-hidden relative flex-grow min-w-fit">
+                <div class="grid grid-cols-[300px_100px_1fr] p-1.5 items-center gap-2.5 font-bold border-b border-gray-200 bg-white z-10 sticky top-0 min-w-fit">
                     <div>Signals</div>
                     <div>Value</div>
-                    <div class="header-timeline">
-                        <canvas id="timeline" width="800" height="30"></canvas>
+                    <div class="flex items-center overflow-hidden">
+                        <canvas id="timeline" width="800" height="30" class="border border-gray-200 bg-white block w-full h-[30px] min-w-0"></canvas>
                     </div>
                 </div>
-                <div id="waveform-rows-container"></div>
+                <div id="waveform-rows-container" class="overflow-y-auto flex-grow scrollbar-gutter-stable min-w-fit"></div>
             </div>
         </div>
     </div>

@@ -12,7 +12,7 @@ dependencies = [
     "cookiecutter>=2.6.0",
     "django",
     "django-tailwind[reload]>=3.8.0",
-    "pyDigitalWaveTools",
+    "pydigitalwavetools",
     "vcdvcd",
 ]
 

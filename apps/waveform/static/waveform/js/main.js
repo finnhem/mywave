@@ -365,7 +365,11 @@ function uploadVCD() {
         try {
             const response = await fetch('', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                credentials: 'same-origin'
             });
             
             const data = await response.json();
@@ -378,6 +382,7 @@ function uploadVCD() {
             }
         } catch (error) {
             status.textContent = 'Error uploading file: ' + error.message;
+            console.error('Upload error:', error);
         }
     };
 }
