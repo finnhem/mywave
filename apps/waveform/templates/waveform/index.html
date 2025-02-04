@@ -28,10 +28,11 @@
         .waveform-canvas-container {
             overflow: hidden;
             min-width: 0;
+            height: 40px;
         }
         .waveform-canvas-container canvas {
             width: 100%;
-            height: 40px;
+            height: 100%;
             display: block;
         }
         #waveform-display-container .header-row {
@@ -47,6 +48,11 @@
             top: 0;
             z-index: 10;
             min-width: fit-content;
+            height: 52px;
+        }
+        #timeline-container {
+            height: 40px;
+            overflow: hidden;
         }
     </style>
 </head>
@@ -90,8 +96,8 @@
                 <div class="grid grid-cols-[300px_100px_1fr] p-1.5 items-center gap-2.5 font-bold border-b border-gray-200 bg-white z-10 sticky top-0 min-w-fit">
                     <div>Signals</div>
                     <div>Value</div>
-                    <div class="flex items-center overflow-hidden">
-                        <canvas id="timeline" width="800" height="30" class="border border-gray-200 bg-white block w-full h-[30px] min-w-0"></canvas>
+                    <div id="timeline-container" class="flex items-center overflow-hidden">
+                        <canvas id="timeline" class="border border-gray-200 bg-white block w-full h-full"></canvas>
                     </div>
                 </div>
                 <div id="waveform-rows-container" class="overflow-y-auto flex-grow scrollbar-gutter-stable min-w-fit"></div>

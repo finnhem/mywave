@@ -14,51 +14,54 @@
  * Handles high DPI displays by scaling the canvas context appropriately.
  * @param {HTMLCanvasElement} canvas - Canvas to update resolution for
  * @returns {Object} Canvas properties
- * @returns {number} .cssWidth - Width in CSS pixels
- * @returns {number} .cssHeight - Height in CSS pixels
- * @returns {number} .internalWidth - Actual canvas buffer width
- * @returns {number} .internalHeight - Actual canvas buffer height
- * @returns {number} .dpr - Device pixel ratio used
- * @returns {CanvasRenderingContext2D} .ctx - Canvas context, scaled for DPI
+ * @returns {number} .width - Canvas width in logical pixels
+ * @returns {number} .height - Canvas height in logical pixels
+ * @returns {CanvasRenderingContext2D} .ctx - Canvas context
  */
 export function updateCanvasResolution(canvas) {
-    const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
     
-    // Set internal canvas dimensions
+    // Set canvas size in CSS pixels
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    
+    // Set canvas internal dimensions accounting for DPI
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     
-    // Scale context to account for device pixel ratio
     const ctx = canvas.getContext('2d');
+    
+    // Scale drawing operations for high DPI displays
     ctx.scale(dpr, dpr);
     
+    // Clear any previous content
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    
     return {
-        cssWidth: rect.width,
-        cssHeight: rect.height,
-        internalWidth: canvas.width,
-        internalHeight: canvas.height,
-        dpr: dpr,
+        width: rect.width,
+        height: rect.height,
         ctx: ctx
     };
 }
 
 /**
- * Converts CSS pixel coordinates to internal canvas coordinates.
- * Accounts for device pixel ratio and canvas position in the viewport.
- * @param {number} cssPosX - X position in CSS pixels from viewport left
- * @param {number} cssPosY - Y position in CSS pixels from viewport top
+ * Converts viewport coordinates to canvas coordinates.
+ * @param {number} viewportX - X position relative to viewport
+ * @param {number} viewportY - Y position relative to viewport
  * @param {HTMLCanvasElement} canvas - Target canvas element
- * @returns {Object} Converted coordinates
+ * @returns {Object} Canvas coordinates
  * @returns {number} .x - X coordinate in canvas space
  * @returns {number} .y - Y coordinate in canvas space
  */
-export function cssToCanvasCoords(cssPosX, cssPosY, canvas) {
-    const dpr = window.devicePixelRatio || 1;
+export function viewportToCanvasCoords(viewportX, viewportY, canvas) {
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
     return {
-        x: (cssPosX - rect.left) * dpr,
-        y: (cssPosY - rect.top) * dpr
+        x: (viewportX - rect.left) * scaleX,
+        y: (viewportY - rect.top) * scaleY
     };
 }
 
@@ -73,7 +76,7 @@ export function cssToCanvasCoords(cssPosX, cssPosY, canvas) {
  */
 export function timeToCanvasX(time, startTime, endTime, canvasWidth) {
     const timeRange = endTime - startTime;
-    return ((time - startTime) / timeRange) * canvasWidth;
+    return Math.round(((time - startTime) / timeRange) * canvasWidth);
 }
 
 /**
@@ -102,8 +105,8 @@ export function drawCursor(ctx, x, height) {
     ctx.strokeStyle = 'red';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+    ctx.moveTo(Math.round(x) + 0.5, 0);
+    ctx.lineTo(Math.round(x) + 0.5, height);
     ctx.stroke();
     ctx.restore();
 }
@@ -116,5 +119,8 @@ export function drawCursor(ctx, x, height) {
  * @param {number} height - Canvas height in pixels
  */
 export function clearCanvas(ctx, width, height) {
+    ctx.save();
+    ctx.resetTransform();
     ctx.clearRect(0, 0, width, height);
+    ctx.restore();
 } 

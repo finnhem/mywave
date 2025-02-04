@@ -61,13 +61,13 @@ function createSignalRow(signal) {
     
     // Create waveform container
     const waveformDiv = document.createElement('div');
-    waveformDiv.className = 'waveform-canvas-container overflow-hidden min-w-0';
+    waveformDiv.className = 'waveform-canvas-container h-[40px]';
     
     // Create and set up canvas
     const canvas = document.createElement('canvas');
-    canvas.className = 'w-full h-[40px] block';
-    canvas.width = 1200;  // Initial internal resolution
-    canvas.height = 40;
+    canvas.className = 'w-full h-full block';
+    canvas.style.width = '100%';
+    canvas.style.height = '40px';
     waveformDiv.appendChild(canvas);
     
     // Store references and set up data
@@ -92,7 +92,9 @@ function createSignalRow(signal) {
         canvas.onclick = handleSelection;
         
         // Initial waveform draw
-        drawWaveform(canvas, signal.data);
+        requestAnimationFrame(() => {
+            drawWaveform(canvas, signal.data);
+        });
     } else {
         // Clear canvas for signals without data
         const ctx = canvas.getContext('2d');
@@ -280,6 +282,8 @@ function processSignals(signals) {
         const timeline = document.getElementById('timeline');
         if (timeline) {
             cursor.canvases.push(timeline);
+            // Add click handler for timeline cursor placement
+            timeline.onclick = handleCanvasClick;
             drawTimeline(timeline, cursor.startTime, cursor.endTime);
         }
     }

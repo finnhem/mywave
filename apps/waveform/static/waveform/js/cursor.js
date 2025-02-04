@@ -10,7 +10,7 @@
 
 import { clearAndRedraw, setZoom, zoomState, getVisibleTimeRange } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
-import { cssToCanvasCoords, canvasXToTime } from './canvas.js';
+import { viewportToCanvasCoords, canvasXToTime } from './canvas.js';
 
 /**
  * Cursor state object
@@ -61,13 +61,15 @@ export function updateCursorDisplay(newTime) {
  */
 export function handleCanvasClick(event) {
     const canvas = event.target;
-    const { x: internalX } = cssToCanvasCoords(event.clientX, event.clientY, canvas);
+    
+    // Convert viewport coordinates to canvas coordinates
+    const { x } = viewportToCanvasCoords(event.clientX, event.clientY, canvas);
     
     // Get the visible time range
     const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
     
     // Convert x position to time
-    const clickTime = canvasXToTime(internalX, visibleRange.start, visibleRange.end, canvas.width);
+    const clickTime = canvasXToTime(x, visibleRange.start, visibleRange.end, canvas.width);
     
     // Update cursor position
     updateCursorDisplay(clickTime);

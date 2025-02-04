@@ -85,8 +85,6 @@ export function getVisibleTimeRange(totalStartTime, totalEndTime) {
  * @param {HTMLCanvasElement} canvas - Canvas to redraw
  */
 export function clearAndRedraw(canvas) {
-    const { ctx, internalWidth, internalHeight } = updateCanvasResolution(canvas);
-    
     if (canvas.id === 'timeline') {
         const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
         drawTimeline(canvas, visibleRange.start, visibleRange.end);
@@ -99,6 +97,23 @@ export function clearAndRedraw(canvas) {
 }
 
 /**
+ * Gets the Y coordinate for a signal value.
+ * Maps digital signal values to vertical positions on the canvas.
+ * @param {string} value - Signal value ('0', '1', 'b0', 'b1', or other)
+ * @param {number} height - Canvas height in pixels
+ * @returns {number} Y coordinate in canvas space
+ */
+function getYForValue(value, height) {
+    const padding = 10;
+    if (value === '1' || value === 'b1') {
+        return padding;
+    } else if (value === '0' || value === 'b0') {
+        return height - padding;
+    }
+    return height/2;
+}
+
+/**
  * Draws a digital waveform on the given canvas.
  * Renders signal transitions with proper scaling and highlighting.
  * Includes cursor display if within visible range.
@@ -108,8 +123,7 @@ export function clearAndRedraw(canvas) {
  * @param {string} data[].value - Signal value at the time point
  */
 export function drawWaveform(canvas, data) {
-    const { ctx, internalWidth, internalHeight } = updateCanvasResolution(canvas);
-    clearCanvas(ctx, internalWidth, internalHeight);
+    const { ctx, width, height } = updateCanvasResolution(canvas);
     
     if (!data || data.length === 0) return;
     
@@ -117,42 +131,44 @@ export function drawWaveform(canvas, data) {
     const totalEndTime = data[data.length - 1].time;
     const visibleRange = getVisibleTimeRange(totalStartTime, totalEndTime);
     
+    // Clear the canvas with the current transform
+    clearCanvas(ctx, canvas.width, canvas.height);
+    
+    ctx.save();
     ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
-    ctx.lineWidth = canvas.classList.contains('selected') ? 3 : 2;
+    ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
     ctx.beginPath();
     
     // Find initial state
     let lastX = null;
-    let lastY = internalHeight/2;
+    let lastY = null;
     
     // Find the last point before visible range
     const initialPoint = data.findLast(point => point.time <= visibleRange.start);
     if (initialPoint) {
-        lastY = getYForValue(initialPoint.value, internalHeight);
-        ctx.moveTo(0, lastY);
+        lastY = getYForValue(initialPoint.value, height);
+        ctx.moveTo(0, Math.round(lastY) + 0.5);
         lastX = 0;
     }
     
     // Draw visible data points
-    const visibleData = data.filter((point, index) => {
-        const isVisible = point.time >= visibleRange.start - (visibleRange.end - visibleRange.start)/internalWidth && 
-                         point.time <= visibleRange.end + (visibleRange.end - visibleRange.start)/internalWidth;
-        const isTransitionPoint = 
-            (index > 0 && data[index-1].time < visibleRange.start && point.time > visibleRange.start) ||
-            (index < data.length-1 && data[index+1].time > visibleRange.end && point.time < visibleRange.end);
-        return isVisible || isTransitionPoint;
-    });
+    const visibleData = data.filter(point => 
+        point.time >= visibleRange.start - 1 && 
+        point.time <= visibleRange.end + 1
+    );
     
     visibleData.forEach(point => {
-        const x = timeToCanvasX(point.time, visibleRange.start, visibleRange.end, internalWidth);
-        const y = getYForValue(point.value, internalHeight);
+        const x = Math.round(timeToCanvasX(point.time, visibleRange.start, visibleRange.end, width)) + 0.5;
+        const y = Math.round(getYForValue(point.value, height)) + 0.5;
         
         if (lastX === null) {
             ctx.moveTo(x, y);
         } else if (y !== lastY) {
+            // Draw vertical transition
             ctx.lineTo(x, lastY);
             ctx.lineTo(x, y);
         } else {
+            // Continue horizontal line
             ctx.lineTo(x, y);
         }
         
@@ -160,16 +176,19 @@ export function drawWaveform(canvas, data) {
         lastY = y;
     });
     
-    if (lastX !== null) {
-        ctx.lineTo(internalWidth, lastY);
+    // Extend to end of canvas
+    if (lastX !== null && lastY !== null) {
+        ctx.lineTo(width, lastY);
     }
+    
     ctx.stroke();
+    ctx.restore();
 
     // Draw cursor if in view
     if (cursor.currentTime !== undefined) {
-        const cursorX = timeToCanvasX(cursor.currentTime, visibleRange.start, visibleRange.end, internalWidth);
-        if (cursorX >= -1 && cursorX <= internalWidth + 1) {
-            drawCursor(ctx, Math.max(0, Math.min(internalWidth, cursorX)), internalHeight);
+        const cursorX = timeToCanvasX(cursor.currentTime, visibleRange.start, visibleRange.end, width);
+        if (cursorX >= -1 && cursorX <= width + 1) {
+            drawCursor(ctx, cursorX, height);
         }
     }
 }
@@ -182,15 +201,15 @@ export function drawWaveform(canvas, data) {
  * @param {number} endTime - End time of visible range
  */
 export function drawTimeline(canvas, startTime, endTime) {
-    const { ctx, internalWidth, internalHeight } = updateCanvasResolution(canvas);
-    clearCanvas(ctx, internalWidth, internalHeight);
+    const { ctx, width, height } = updateCanvasResolution(canvas);
+    clearCanvas(ctx, canvas.width, canvas.height);
     
     // Draw baseline
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(0, internalHeight/2);
-    ctx.lineTo(internalWidth, internalHeight/2);
+    ctx.moveTo(0, Math.round(height/2) + 0.5);
+    ctx.lineTo(width, Math.round(height/2) + 0.5);
     ctx.stroke();
     
     // Draw time markers
@@ -200,38 +219,23 @@ export function drawTimeline(canvas, startTime, endTime) {
     
     const numMarkers = 10;
     for (let i = 0; i <= numMarkers; i++) {
-        const x = (i / numMarkers) * internalWidth;
+        const x = Math.round((i / numMarkers) * width) + 0.5;
+        const y = Math.round(height/2) + 0.5;
         const time = startTime + (i / numMarkers) * (endTime - startTime);
         
         ctx.beginPath();
-        ctx.moveTo(x, internalHeight/2 - 5);
-        ctx.lineTo(x, internalHeight/2 + 5);
+        ctx.moveTo(x, y - 5);
+        ctx.lineTo(x, y + 5);
         ctx.stroke();
         
-        ctx.fillText(time.toFixed(1), x, internalHeight - 2);
+        ctx.fillText(time.toFixed(1), x, height - 2);
     }
 
     // Draw cursor if in view
     if (cursor.currentTime !== undefined) {
-        const cursorX = timeToCanvasX(cursor.currentTime, startTime, endTime, internalWidth);
-        if (cursorX >= -1 && cursorX <= internalWidth + 1) {
-            drawCursor(ctx, Math.max(0, Math.min(internalWidth, cursorX)), internalHeight);
+        const cursorX = timeToCanvasX(cursor.currentTime, startTime, endTime, width);
+        if (cursorX >= -1 && cursorX <= width + 1) {
+            drawCursor(ctx, cursorX, height);
         }
     }
-}
-
-/**
- * Gets the Y coordinate for a signal value.
- * Maps digital signal values to vertical positions on the canvas.
- * @param {string} value - Signal value ('0', '1', 'b0', 'b1', or other)
- * @param {number} height - Canvas height in pixels
- * @returns {number} Y coordinate in canvas space
- */
-function getYForValue(value, height) {
-    if (value === '1' || value === 'b1') {
-        return 10;
-    } else if (value === '0' || value === 'b0') {
-        return height - 10;
-    }
-    return height/2;
 } 
