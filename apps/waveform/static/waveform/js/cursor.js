@@ -8,8 +8,9 @@
  * @module cursor
  */
 
-import { clearAndRedraw, setZoom, zoomState, drawWaveform, drawTimeline, getVisibleTimeRange } from './waveform.js';
+import { clearAndRedraw, setZoom, zoomState, getVisibleTimeRange } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
+import { cssToCanvasCoords, canvasXToTime } from './canvas.js';
 
 /**
  * Cursor state object
@@ -19,7 +20,7 @@ import { getSignalValueAtTime } from './utils.js';
  * @property {number} currentTime - Current cursor position in time
  * @property {Array<HTMLCanvasElement>} canvases - Array of canvases to track cursor on
  */
-const cursor = {
+export const cursor = {
     startTime: 0,
     endTime: 0,
     currentTime: 0,
@@ -31,18 +32,24 @@ const cursor = {
  * Centers the zoomed view on the new cursor position.
  * @param {number} newTime - New cursor time position
  */
-function updateCursorDisplay(newTime) {
-    cursor.currentTime = newTime;
-    document.getElementById('cursor-time').textContent = `Cursor Time: ${newTime}`;
+export function updateCursorDisplay(newTime) {
+    // Clamp time to valid range
+    const boundedTime = Math.max(cursor.startTime, Math.min(cursor.endTime, newTime));
+    cursor.currentTime = boundedTime;
+    
+    // Update cursor time display
+    document.getElementById('cursor-time').textContent = `Cursor Time: ${boundedTime.toFixed(3)}`;
     
     // Update zoom center
-    zoomState.center = newTime;
+    zoomState.center = boundedTime;
     
-    // Force redraw of all canvases
+    // Update all canvases and value displays
     cursor.canvases.forEach(canvas => {
         clearAndRedraw(canvas);
         if (canvas.valueDisplay) {
-            canvas.valueDisplay.textContent = getSignalValueAtTime(canvas.signalData, newTime);
+            const value = getSignalValueAtTime(canvas.signalData, boundedTime);
+            canvas.valueDisplay.textContent = value;
+            canvas.valueDisplay.classList.toggle('no-data', value === 'no data');
         }
     });
 }
@@ -52,36 +59,30 @@ function updateCursorDisplay(newTime) {
  * Converts click position to time value based on visible time range.
  * @param {MouseEvent} event - Click event object
  */
-function handleCanvasClick(event) {
+export function handleCanvasClick(event) {
     const canvas = event.target;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const width = canvas.width;
+    const { x: internalX } = cssToCanvasCoords(event.clientX, event.clientY, canvas);
     
     // Get the visible time range
     const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
-    const timeRange = visibleRange.end - visibleRange.start;
     
-    // Calculate time based on visible range
-    const clickTime = visibleRange.start + (x / width) * timeRange;
+    // Convert x position to time
+    const clickTime = canvasXToTime(internalX, visibleRange.start, visibleRange.end, canvas.width);
     
-    // Ensure clickTime is within bounds
-    const boundedTime = Math.max(cursor.startTime, Math.min(cursor.endTime, clickTime));
-    updateCursorDisplay(boundedTime);
+    // Update cursor position
+    updateCursorDisplay(clickTime);
 }
 
-function moveCursorToStart() {
+/**
+ * Moves cursor to start of signal range
+ */
+export function moveCursorToStart() {
     updateCursorDisplay(cursor.startTime);
 }
 
-function moveCursorToEnd() {
+/**
+ * Moves cursor to end of signal range
+ */
+export function moveCursorToEnd() {
     updateCursorDisplay(cursor.endTime);
-}
-
-export {
-    cursor,
-    handleCanvasClick,
-    moveCursorToStart,
-    moveCursorToEnd,
-    updateCursorDisplay
-}; 
+} 

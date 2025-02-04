@@ -1,8 +1,11 @@
 /**
  * Main application module for the waveform viewer.
- * Handles file upload, signal display initialization, and event setup.
- * Coordinates between different modules to create the complete waveform
- * viewing experience.
+ * Handles application initialization and coordination including:
+ * - Signal data processing and display
+ * - UI component creation and event binding
+ * - File upload and processing
+ * - Signal hierarchy management
+ * - Zoom and navigation controls
  * @module main
  */
 
@@ -24,18 +27,90 @@ import {
     toggleNodeSelection
 } from './hierarchy.js';
 
-function handleZoomIn() {
-    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
-    setZoom(zoomState.level * 1.5, centerTime);
-    updateZoomDisplay();
+/**
+ * Creates a signal row with name, value, and waveform display.
+ * Builds a responsive grid layout with Tailwind CSS classes.
+ * Sets up event handlers for signal selection and cursor movement.
+ * @param {Object} signal - Signal data object
+ * @param {string} signal.name - Name of the signal
+ * @param {Array<Object>} [signal.data] - Signal data points (optional)
+ * @param {number} signal.data[].time - Time value of the data point
+ * @param {string} signal.data[].value - Signal value at the time point
+ * @returns {HTMLElement} Created row element with signal display
+ */
+function createSignalRow(signal) {
+    // Create row container with Tailwind classes
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-[300px_100px_1fr] gap-2.5 items-center p-1.5 min-w-fit border-b border-gray-200 hover:bg-gray-50';
+    
+    // Create signal name cell
+    const nameCell = document.createElement('div');
+    nameCell.className = 'px-2.5 overflow-hidden text-ellipsis whitespace-nowrap signal-name hover:text-blue-600 cursor-pointer';
+    nameCell.textContent = signal.name;
+    
+    // Create value display cell
+    const valueDiv = document.createElement('div');
+    valueDiv.className = 'text-center font-mono text-sm';
+    
+    if (!signal.data || signal.data.length === 0) {
+        valueDiv.classList.add('text-gray-400');
+        valueDiv.textContent = 'no data';
+    } else {
+        valueDiv.textContent = getSignalValueAtTime(signal.data, 0);
+    }
+    
+    // Create waveform container
+    const waveformDiv = document.createElement('div');
+    waveformDiv.className = 'waveform-canvas-container overflow-hidden min-w-0';
+    
+    // Create and set up canvas
+    const canvas = document.createElement('canvas');
+    canvas.className = 'w-full h-[40px] block';
+    canvas.width = 1200;  // Initial internal resolution
+    canvas.height = 40;
+    waveformDiv.appendChild(canvas);
+    
+    // Store references and set up data
+    canvas.signalData = signal.data;
+    canvas.valueDisplay = valueDiv;
+    
+    // Add event handlers if signal has data
+    if (signal.data && signal.data.length > 0) {
+        cursor.canvases.push(canvas);
+        
+        // Set up click handlers for both name and canvas
+        const handleSelection = (event) => {
+            // If clicking canvas, handle cursor position first
+            if (event.currentTarget === canvas) {
+                handleCanvasClick(event);
+            }
+            
+            selectSignal(signal.name, nameCell, canvas);
+        };
+        
+        nameCell.onclick = handleSelection;
+        canvas.onclick = handleSelection;
+        
+        // Initial waveform draw
+        drawWaveform(canvas, signal.data);
+    } else {
+        // Clear canvas for signals without data
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    // Assemble row
+    row.appendChild(nameCell);
+    row.appendChild(valueDiv);
+    row.appendChild(waveformDiv);
+    
+    return row;
 }
 
-function handleZoomOut() {
-    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
-    setZoom(zoomState.level / 1.5, centerTime);
-    updateZoomDisplay();
-}
-
+/**
+ * Updates the zoom level display in the UI.
+ * Shows the current zoom level with one decimal place.
+ */
 function updateZoomDisplay() {
     const zoomLevelElement = document.getElementById('zoom-level');
     if (zoomLevelElement) {
@@ -43,8 +118,35 @@ function updateZoomDisplay() {
     }
 }
 
+/**
+ * Handles zoom in button click.
+ * Increases zoom by 50% and centers on cursor position.
+ */
+function handleZoomIn() {
+    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
+    setZoom(zoomState.level * 1.5, centerTime);
+    updateZoomDisplay();
+}
+
+/**
+ * Handles zoom out button click.
+ * Decreases zoom by 33% and centers on cursor position.
+ */
+function handleZoomOut() {
+    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
+    setZoom(zoomState.level / 1.5, centerTime);
+    updateZoomDisplay();
+}
+
+/**
+ * Sets up event handlers for all interactive elements.
+ * Binds handlers for:
+ * - Navigation buttons (cursor movement)
+ * - Zoom controls (buttons and mouse wheel)
+ * - Signal selection
+ */
 function setupEventHandlers() {
-    // Set up button click handlers
+    // Set up navigation button handlers
     const buttonHandlers = {
         '⏮ Start': moveCursorToStart,
         '↓ Prev': findPreviousFallingEdge,
@@ -66,11 +168,6 @@ function setupEventHandlers() {
     if (zoomIn) zoomIn.onclick = handleZoomIn;
     if (zoomOut) zoomOut.onclick = handleZoomOut;
 
-    // Set up canvas click handlers
-    document.querySelectorAll('canvas').forEach(canvas => {
-        canvas.addEventListener('click', handleCanvasClick);
-    });
-
     // Add wheel zoom support
     document.querySelectorAll('canvas').forEach(canvas => {
         canvas.addEventListener('wheel', (event) => {
@@ -78,7 +175,7 @@ function setupEventHandlers() {
             const rect = canvas.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const timeRange = cursor.endTime - cursor.startTime;
-            const centerTime = cursor.startTime + (x / canvas.width) * timeRange;
+            const centerTime = cursor.startTime + (x / rect.width) * timeRange;
             
             if (event.deltaY < 0) {
                 setZoom(zoomState.level * 1.1, centerTime);
@@ -88,187 +185,13 @@ function setupEventHandlers() {
             updateZoomDisplay();
         });
     });
-
-    // Set up select/deselect all buttons
-    const selectAll = document.getElementById('select-all');
-    const deselectAll = document.getElementById('deselect-all');
-    const signalTree = document.getElementById('signal-tree');
-    
-    if (selectAll) {
-        selectAll.onclick = () => {
-            const root = signalTree.hierarchyRoot;
-            if (root) {
-                toggleNodeSelection(root, true);
-            }
-        };
-    }
-    if (deselectAll) {
-        deselectAll.onclick = () => {
-            const root = signalTree.hierarchyRoot;
-            if (root) {
-                toggleNodeSelection(root, false);
-            }
-        };
-    }
 }
 
-function createSignalRow(signal) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    
-    // Create signal name cell
-    const nameCell = document.createElement('div');
-    nameCell.className = 'signal-name';
-    nameCell.textContent = signal.name;
-    
-    // Add click handler for signal selection
-    nameCell.onclick = () => {
-        // Clear previous selection
-        document.querySelectorAll('.signal-name.selected').forEach(el => el.classList.remove('selected'));
-        document.querySelectorAll('canvas.selected').forEach(c => c.classList.remove('selected'));
-        
-        // Set new selection
-        nameCell.classList.add('selected');
-        canvas.classList.add('selected');
-        
-        // Redraw all canvases to update highlighting
-        document.querySelectorAll('canvas').forEach(c => {
-            if (c.id !== 'timeline' && c.signalData) {
-                drawWaveform(c, c.signalData, false);
-            }
-        });
-    };
-    
-    // Create value cell
-    const valueDiv = document.createElement('div');
-    valueDiv.className = 'signal-value';
-    
-    // Mark signals without data
-    if (!signal.data || signal.data.length === 0) {
-        valueDiv.classList.add('no-data');
-        valueDiv.textContent = 'no data';
-    } else {
-        // Initialize with value at cursor time 0
-        valueDiv.textContent = getSignalValueAtTime(signal.data, 0);
-    }
-    
-    // Create waveform cell
-    const waveformDiv = document.createElement('div');
-    waveformDiv.className = 'waveform-canvas-container';
-    
-    const canvas = document.createElement('canvas');
-    // Set a high resolution for the canvas
-    canvas.width = 1200; // Internal resolution
-    canvas.height = 40;
-    waveformDiv.appendChild(canvas);
-    
-    // Store references for value updates
-    canvas.signalData = signal.data;
-    canvas.valueDisplay = valueDiv;
-    
-    // Only add canvas to cursor tracking if it has data
-    if (signal.data && signal.data.length > 0) {
-        cursor.canvases.push(canvas);
-        
-        // Add click handler for signal selection on canvas too
-        canvas.onclick = (e) => {
-            // First handle the canvas click for cursor
-            handleCanvasClick(e);
-            
-            // Then handle signal selection
-            document.querySelectorAll('.signal-name.selected').forEach(el => el.classList.remove('selected'));
-            document.querySelectorAll('canvas.selected').forEach(c => c.classList.remove('selected'));
-            
-            nameCell.classList.add('selected');
-            canvas.classList.add('selected');
-            
-            // Redraw all canvases to update highlighting
-            document.querySelectorAll('canvas').forEach(c => {
-                if (c.id !== 'timeline' && c.signalData) {
-                    drawWaveform(c, c.signalData, false);
-                }
-            });
-        };
-    }
-
-    // Only add click handler if signal has data
-    if (signal.data && signal.data.length > 0) {
-        drawWaveform(canvas, signal.data);
-    } else {
-        // Clear the canvas for signals without data
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    
-    // Add all cells to row
-    row.appendChild(nameCell);
-    row.appendChild(valueDiv);
-    row.appendChild(waveformDiv);
-    
-    return row;
-}
-
-function createTreeNode(node, level = 0) {
-    const item = document.createElement('div');
-    item.className = 'tree-item';
-    
-    const header = document.createElement('div');
-    header.className = 'tree-header';
-    header.style.paddingLeft = `${level * 20}px`;
-    
-    // Add expand/collapse button if node has children
-    if (node.children.size > 0) {
-        const expander = document.createElement('span');
-        expander.className = 'expander';
-        expander.textContent = node.expanded ? '▼' : '▶';
-        expander.onclick = (e) => {
-            e.stopPropagation();
-            node.expanded = !node.expanded;
-            expander.textContent = node.expanded ? '▼' : '▶';
-            // Toggle visibility of child nodes
-            Array.from(item.children).slice(1).forEach(child => {
-                child.style.display = node.expanded ? '' : 'none';
-            });
-        };
-        header.appendChild(expander);
-    } else {
-        // Add spacer for leaf nodes to align with parent nodes
-        const spacer = document.createElement('span');
-        spacer.style.width = '16px';
-        spacer.style.display = 'inline-block';
-        header.appendChild(spacer);
-    }
-    
-    // Add checkbox
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = node.selected;
-    checkbox.onclick = (e) => {
-        e.stopPropagation();
-        toggleNodeSelection(node, checkbox.checked);
-        updateDisplayedSignals();
-    };
-    header.appendChild(checkbox);
-    
-    // Add name label
-    const label = document.createElement('span');
-    label.className = 'tree-label';
-    label.textContent = node.name;
-    header.appendChild(label);
-    
-    item.appendChild(header);
-    node.element = item;
-    
-    // Recursively create child nodes
-    if (node.children.size > 0) {
-        for (const child of node.children.values()) {
-            item.appendChild(createTreeNode(child, level + 1));
-        }
-    }
-    
-    return item;
-}
-
+/**
+ * Updates the displayed signals based on tree selection.
+ * Clears and rebuilds signal rows for selected signals.
+ * Resets cursor canvas tracking and redraws all canvases.
+ */
 function updateDisplayedSignals() {
     const waveformRowsContainer = document.getElementById('waveform-rows-container');
     const signalTree = document.getElementById('signal-tree');
@@ -300,7 +223,7 @@ function updateDisplayedSignals() {
     // Get all selected signals
     const selectedSignals = collectSelectedSignals(signalTree.hierarchyRoot);
     
-    // Only create rows if there are selected signals
+    // Create rows for selected signals
     if (selectedSignals.length > 0) {
         selectedSignals.forEach(signal => {
             const row = createSignalRow(signal);
@@ -317,6 +240,15 @@ function updateDisplayedSignals() {
 // Make updateDisplayedSignals available globally
 window.updateDisplayedSignals = updateDisplayedSignals;
 
+/**
+ * Processes signal data and initializes the display.
+ * Sets up signal hierarchy, creates UI elements, and initializes timeline.
+ * @param {Array<Object>} signals - Array of signal data objects
+ * @param {string} signals[].name - Name of the signal
+ * @param {Array<Object>} [signals[].data] - Signal data points (optional)
+ * @param {number} signals[].data[].time - Time value of each data point
+ * @param {string} signals[].data[].value - Signal value at each time point
+ */
 function processSignals(signals) {
     // Build hierarchy
     const root = buildHierarchy(signals);
@@ -339,7 +271,7 @@ function processSignals(signals) {
         waveformRowsContainer.appendChild(row);
     });
     
-    // Initialize timeline
+    // Initialize timeline if signals exist
     if (signals.length > 0 && signals[0].data && signals[0].data.length > 0) {
         cursor.startTime = signals[0].data[0].time;
         cursor.endTime = signals[0].data[signals[0].data.length - 1].time;
@@ -353,6 +285,11 @@ function processSignals(signals) {
     }
 }
 
+/**
+ * Sets up VCD file upload handling.
+ * Configures form submission and handles the upload response.
+ * Processes uploaded signal data and updates the display.
+ */
 function uploadVCD() {
     const form = document.getElementById('upload-form');
     const status = document.getElementById('file-upload-status');
@@ -387,7 +324,7 @@ function uploadVCD() {
     };
 }
 
-// Initialize application
+// Initialize application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     setupEventHandlers();
     uploadVCD();
