@@ -197,19 +197,147 @@ function setupEventHandlers() {
     if (timeline) {
         timeline.addEventListener('wheel', handleWheelZoom);
     }
+
+    // Set up select/deselect all buttons
+    const selectAll = document.getElementById('select-all');
+    const deselectAll = document.getElementById('deselect-all');
+    
+    if (selectAll) {
+        selectAll.onclick = () => {
+            const signalTree = document.getElementById('signal-tree');
+            if (signalTree?.hierarchyRoot) {
+                toggleNodeSelection(signalTree.hierarchyRoot, true);
+            }
+        };
+    }
+    
+    if (deselectAll) {
+        deselectAll.onclick = () => {
+            const signalTree = document.getElementById('signal-tree');
+            if (signalTree?.hierarchyRoot) {
+                toggleNodeSelection(signalTree.hierarchyRoot, false);
+            }
+        };
+    }
 }
 
 /**
+ * Manages virtual scrolling of signal rows
+ * @type {Object}
+ */
+const virtualScroll = {
+    rowHeight: 40, // Height of each row in pixels
+    bufferSize: 5, // Number of rows to render above and below viewport
+    container: null,
+    content: null,
+    totalRows: 0,
+    signals: [],
+    rowCache: new Map(), // Cache for row elements
+    
+    /**
+     * Initializes virtual scrolling
+     * @param {Array<Object>} signals - Array of all signals
+     * @param {boolean} [forceRecreate=false] - Whether to force recreation of all rows
+     */
+    initialize(signals, forceRecreate = false) {
+        const isFirstInit = !this.container;
+        
+        // Always clear cache when signals list changes
+        const oldSignalCount = this.signals.length;
+        this.signals = signals;
+        this.totalRows = signals.length;
+        
+        // Clear cache if signal count changes or force recreate
+        if (forceRecreate || oldSignalCount !== signals.length) {
+            this.rowCache.clear();
+        }
+        
+        if (isFirstInit) {
+            this.container = document.getElementById('waveform-rows-container');
+            this.content = document.createElement('div');
+            this.content.style.position = 'relative';
+            this.container.innerHTML = '';
+            this.container.appendChild(this.content);
+            this.container.addEventListener('scroll', () => this.onScroll());
+        }
+        
+        // Update content height
+        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        
+        // Initial render
+        this.updateVisibleRows();
+    },
+    
+    /**
+     * Gets or creates a row element for a signal
+     * @param {Object} signal - Signal data
+     * @returns {HTMLElement} Row element
+     */
+    getRow(signal) {
+        const cacheKey = signal.name;
+        if (!this.rowCache.has(cacheKey)) {
+            const row = createSignalRow(signal);
+            this.rowCache.set(cacheKey, row);
+        }
+        return this.rowCache.get(cacheKey);
+    },
+    
+    /**
+     * Handles scroll events
+     */
+    onScroll() {
+        requestAnimationFrame(() => this.updateVisibleRows());
+    },
+    
+    /**
+     * Updates which rows are currently rendered based on scroll position
+     */
+    updateVisibleRows() {
+        const scrollTop = this.container.scrollTop;
+        const viewportHeight = this.container.clientHeight;
+        
+        // Calculate visible range
+        let startIndex = Math.floor(scrollTop / this.rowHeight) - this.bufferSize;
+        let endIndex = Math.ceil((scrollTop + viewportHeight) / this.rowHeight) + this.bufferSize;
+        
+        // Clamp indices
+        startIndex = Math.max(0, startIndex);
+        endIndex = Math.min(this.totalRows - 1, endIndex);
+        
+        // Clear existing content
+        this.content.innerHTML = '';
+        
+        // Render visible rows
+        for (let i = startIndex; i <= endIndex && i < this.signals.length; i++) {
+            const signal = this.signals[i];
+            const row = this.getRow(signal);
+            
+            // Position the row absolutely
+            row.style.position = 'absolute';
+            row.style.top = `${i * this.rowHeight}px`;
+            row.style.width = '100%';
+            
+            this.content.appendChild(row);
+        }
+    },
+    
+    /**
+     * Updates the total number of rows and refreshes the display
+     * @param {number} newTotal - New total number of rows
+     */
+    updateTotalRows(newTotal) {
+        this.totalRows = newTotal;
+        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        this.updateVisibleRows();
+    }
+};
+
+/**
  * Updates the displayed signals based on tree selection.
- * Clears and rebuilds signal rows for selected signals.
- * Resets cursor canvas tracking and redraws all canvases.
+ * Uses virtual scrolling to render only visible signals.
  */
 function updateDisplayedSignals() {
-    const waveformRowsContainer = document.getElementById('waveform-rows-container');
     const signalTree = document.getElementById('signal-tree');
-    
-    // Clear existing signals
-    waveformRowsContainer.innerHTML = '';
     
     // Reset cursor canvases to only include timeline
     const timeline = document.getElementById('timeline');
@@ -235,31 +363,22 @@ function updateDisplayedSignals() {
     // Get all selected signals
     const selectedSignals = collectSelectedSignals(signalTree.hierarchyRoot);
     
-    // Create rows for selected signals
-    if (selectedSignals.length > 0) {
-        selectedSignals.forEach(signal => {
-            const row = createSignalRow(signal);
-            waveformRowsContainer.appendChild(row);
-        });
-    }
+    // Initialize virtual scrolling with only selected signals
+    // Only force recreation on first load
+    virtualScroll.initialize(selectedSignals, !virtualScroll.container);
     
-    // Redraw all canvases
-    document.querySelectorAll('canvas').forEach(canvas => {
-        clearAndRedraw(canvas);
-    });
+    // Redraw timeline if it exists
+    if (timeline) {
+        clearAndRedraw(timeline);
+    }
 }
 
-// Make updateDisplayedSignals available globally
+// Make updateDisplayedSignals available globally for hierarchy.js
 window.updateDisplayedSignals = updateDisplayedSignals;
 
 /**
  * Processes signal data and initializes the display.
- * Sets up signal hierarchy, creates UI elements, and initializes timeline.
  * @param {Array<Object>} signals - Array of signal data objects
- * @param {string} signals[].name - Name of the signal
- * @param {Array<Object>} [signals[].data] - Signal data points (optional)
- * @param {number} signals[].data[].time - Time value of each data point
- * @param {string} signals[].data[].value - Signal value at each time point
  */
 function processSignals(signals) {
     // Build hierarchy
@@ -274,14 +393,8 @@ function processSignals(signals) {
     signalTree.innerHTML = '';
     signalTree.appendChild(treeElement);
     
-    // Create signal rows
-    const waveformRowsContainer = document.getElementById('waveform-rows-container');
-    waveformRowsContainer.innerHTML = '';
-    
-    signals.forEach(signal => {
-        const row = createSignalRow(signal);
-        waveformRowsContainer.appendChild(row);
-    });
+    // Initialize virtual scrolling with all signals
+    virtualScroll.initialize(signals);
     
     // Initialize timeline if signals exist
     if (signals.length > 0 && signals[0].data && signals[0].data.length > 0) {
@@ -292,7 +405,6 @@ function processSignals(signals) {
         const timeline = document.getElementById('timeline');
         if (timeline) {
             cursor.canvases.push(timeline);
-            // Add click handler for timeline cursor placement
             timeline.onclick = handleCanvasClick;
             drawTimeline(timeline, cursor.startTime, cursor.endTime);
         }

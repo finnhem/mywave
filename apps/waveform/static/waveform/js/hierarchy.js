@@ -37,6 +37,19 @@ function buildHierarchy(signals) {
         let currentNode = root;
         let currentPath = 'root';
         
+        // For root-level signals, create a parent group if needed
+        if (parts.length === 1) {
+            const groupName = 'Signals';
+            if (!currentNode.children.has(groupName)) {
+                const groupNode = new HierarchyNode(groupName, false);
+                groupNode.parent = currentNode;
+                groupNode.fullPath = 'root.' + groupName;
+                currentNode.children.set(groupName, groupNode);
+            }
+            currentNode = currentNode.children.get(groupName);
+            currentPath = currentNode.fullPath;
+        }
+        
         // Build path through hierarchy
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
@@ -119,49 +132,63 @@ function createTreeElement(node, level = 0) {
 }
 
 /**
- * Toggles selection state of a node and all its descendants
- * @param {HierarchyNode} node - Node to toggle selection for
- * @param {boolean} selected - New selection state
+ * Toggles selection state of a node and its children.
+ * Updates UI to reflect selection state.
+ * @param {HierarchyNode} node - Node to toggle
+ * @param {boolean} [selected] - Force specific selection state
+ * @param {boolean} [skipUpdate=false] - Skip display update
  */
-function toggleNodeSelection(node, selected) {
+function toggleNodeSelection(node, selected = !node.selected, skipUpdate = false) {
+    // Update node selection immediately
     node.selected = selected;
-    if (node.element) {
-        const checkbox = node.element.querySelector('input[type="checkbox"]');
-        if (checkbox) checkbox.checked = selected;
+    const checkbox = node.element.querySelector('input[type="checkbox"]');
+    checkbox.checked = selected;
+    checkbox.indeterminate = false;
+    
+    // Get all children that need to be updated
+    const children = Array.from(node.children.values());
+    
+    // If this is a leaf node or has no children, update immediately
+    if (children.length === 0) {
+        updateParentSelection(node);
+        if (!skipUpdate) {
+            window.updateDisplayedSignals();
+        }
+        return;
     }
     
-    // Recursively update children
-    for (const child of node.children.values()) {
-        toggleNodeSelection(child, selected);
-    }
+    // Process all children immediately for better responsiveness
+    children.forEach(child => {
+        toggleNodeSelection(child, selected, true);
+    });
     
-    // Update parent checkboxes
-    updateParentCheckboxes(node);
-
-    // Update the displayed signals
-    const signalTree = document.getElementById('signal-tree');
-    if (signalTree && signalTree.hierarchyRoot) {
+    // After all children are updated
+    updateParentSelection(node);
+    
+    // Only trigger display update after all changes are processed
+    if (!skipUpdate) {
         window.updateDisplayedSignals();
     }
 }
 
 /**
- * Updates parent node checkboxes based on children's state
- * @param {HierarchyNode} node - Node to update
+ * Updates parent node selection state based on children.
+ * A parent is selected only if all children are selected.
+ * @param {HierarchyNode} node - Node to update parent for
  */
-function updateParentCheckboxes(node) {
-    while (node.parent) {
-        const allChildren = Array.from(node.parent.children.values());
-        const allSelected = allChildren.every(child => child.selected);
-        const someSelected = allChildren.some(child => child.selected);
+function updateParentSelection(node) {
+    let parent = node.parent;
+    while (parent) {
+        const children = Array.from(parent.children.values());
+        const allSelected = children.every(child => child.selected);
+        const someSelected = children.some(child => child.selected);
         
-        node.parent.selected = allSelected;
-        const parentCheckbox = node.parent.element?.querySelector('input[type="checkbox"]');
-        if (parentCheckbox) {
-            parentCheckbox.checked = allSelected;
-            parentCheckbox.indeterminate = !allSelected && someSelected;
-        }
-        node = node.parent;
+        parent.selected = allSelected;
+        const checkbox = parent.element.querySelector('input[type="checkbox"]');
+        checkbox.checked = allSelected;
+        checkbox.indeterminate = !allSelected && someSelected;
+        
+        parent = parent.parent;
     }
 }
 
@@ -169,5 +196,5 @@ export {
     buildHierarchy,
     createTreeElement,
     toggleNodeSelection,
-    updateParentCheckboxes
+    updateParentSelection
 }; 
