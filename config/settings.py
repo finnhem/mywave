@@ -3,11 +3,11 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-your-secret-key-here'  # Change this in production!
+SECRET_KEY = 'g-3g(ws-(hx8tw9tt2we+@($n&fji+&@t34uy6-bp2@-fjv1-u'  # Change this in production!
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0']
 
 INSTALLED_APPS = [
     'django.contrib.admin',

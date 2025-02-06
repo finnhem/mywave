@@ -28,6 +28,27 @@ import {
 } from './hierarchy.js';
 
 /**
+ * Handles mouse wheel zoom events on canvases.
+ * Zooms in/out centered on mouse position.
+ * @param {WheelEvent} event - Wheel event from canvas
+ */
+function handleWheelZoom(event) {
+    event.preventDefault();
+    const canvas = event.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const timeRange = cursor.endTime - cursor.startTime;
+    const centerTime = cursor.startTime + (x / rect.width) * timeRange;
+    
+    if (event.deltaY < 0) {
+        setZoom(zoomState.level * 1.1, centerTime);
+    } else {
+        setZoom(zoomState.level / 1.1, centerTime);
+    }
+    updateZoomDisplay();
+}
+
+/**
  * Creates a signal row with name, value, and waveform display.
  * Builds a responsive grid layout with Tailwind CSS classes.
  * Sets up event handlers for signal selection and cursor movement.
@@ -39,18 +60,18 @@ import {
  * @returns {HTMLElement} Created row element with signal display
  */
 function createSignalRow(signal) {
-    // Create row container with Tailwind classes
+    // Create row container with Tailwind classes - removed gap and padding
     const row = document.createElement('div');
-    row.className = 'grid grid-cols-[300px_100px_1fr] gap-2.5 items-center p-1.5 min-w-fit border-b border-gray-200 hover:bg-gray-50';
+    row.className = 'grid grid-cols-[300px_100px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
     
     // Create signal name cell
     const nameCell = document.createElement('div');
-    nameCell.className = 'px-2.5 overflow-hidden text-ellipsis whitespace-nowrap signal-name hover:text-blue-600 cursor-pointer';
+    nameCell.className = 'px-2.5 overflow-hidden text-ellipsis whitespace-nowrap signal-name hover:text-blue-600 cursor-pointer flex items-center';
     nameCell.textContent = signal.name;
     
     // Create value display cell
     const valueDiv = document.createElement('div');
-    valueDiv.className = 'text-center font-mono text-sm';
+    valueDiv.className = 'text-center font-mono text-sm flex items-center justify-center';
     
     if (!signal.data || signal.data.length === 0) {
         valueDiv.classList.add('text-gray-400');
@@ -59,15 +80,13 @@ function createSignalRow(signal) {
         valueDiv.textContent = getSignalValueAtTime(signal.data, 0);
     }
     
-    // Create waveform container
+    // Create waveform container - set exact height
     const waveformDiv = document.createElement('div');
-    waveformDiv.className = 'waveform-canvas-container h-[40px]';
+    waveformDiv.className = 'waveform-canvas-container h-10';
     
     // Create and set up canvas
     const canvas = document.createElement('canvas');
     canvas.className = 'w-full h-full block';
-    canvas.style.width = '100%';
-    canvas.style.height = '40px';
     waveformDiv.appendChild(canvas);
     
     // Store references and set up data
@@ -90,6 +109,9 @@ function createSignalRow(signal) {
         
         nameCell.onclick = handleSelection;
         canvas.onclick = handleSelection;
+
+        // Add wheel zoom support
+        canvas.addEventListener('wheel', handleWheelZoom);
         
         // Initial waveform draw
         requestAnimationFrame(() => {
@@ -170,23 +192,11 @@ function setupEventHandlers() {
     if (zoomIn) zoomIn.onclick = handleZoomIn;
     if (zoomOut) zoomOut.onclick = handleZoomOut;
 
-    // Add wheel zoom support
-    document.querySelectorAll('canvas').forEach(canvas => {
-        canvas.addEventListener('wheel', (event) => {
-            event.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const timeRange = cursor.endTime - cursor.startTime;
-            const centerTime = cursor.startTime + (x / rect.width) * timeRange;
-            
-            if (event.deltaY < 0) {
-                setZoom(zoomState.level * 1.1, centerTime);
-            } else {
-                setZoom(zoomState.level / 1.1, centerTime);
-            }
-            updateZoomDisplay();
-        });
-    });
+    // Add wheel zoom support to timeline
+    const timeline = document.getElementById('timeline');
+    if (timeline) {
+        timeline.addEventListener('wheel', handleWheelZoom);
+    }
 }
 
 /**
