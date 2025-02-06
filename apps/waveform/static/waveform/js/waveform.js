@@ -12,6 +12,7 @@
 
 import { cursor } from './cursor.js';
 import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas.js';
+import { formatTime } from './utils.js';
 
 /**
  * Enum for waveform rendering styles.
@@ -342,22 +343,30 @@ export function drawTimeline(canvas, startTime, endTime) {
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
     
+    // Get visible time range based on zoom
+    const visibleRange = getVisibleTimeRange(startTime, endTime);
+    const visibleStart = visibleRange.start;
+    const visibleEnd = visibleRange.end;
+    
     const numMarkers = 10;
     for (let i = 0; i <= numMarkers; i++) {
         const x = Math.round((i / numMarkers) * width) + 0.5;
         const y = Math.round(height/2) + 0.5;
-        const time = startTime + (i / numMarkers) * (endTime - startTime);
+        const time = visibleStart + (i / numMarkers) * (visibleEnd - visibleStart);
         
+        // Draw marker line
         ctx.beginPath();
         ctx.moveTo(x, y - 5);
         ctx.lineTo(x, y + 5);
         ctx.stroke();
         
-        ctx.fillText(time.toFixed(1), x, height - 2);
+        // Draw time label
+        const formattedTime = formatTime(time);
+        ctx.fillText(formattedTime, x, height - 2);
     }
 
     // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        drawCursor(ctx, cursor.currentTime, startTime, endTime, width, height);
+        drawCursor(ctx, cursor.currentTime, visibleStart, visibleEnd, width, height);
     }
 }

@@ -378,11 +378,16 @@ window.updateDisplayedSignals = updateDisplayedSignals;
 
 /**
  * Processes signal data and initializes the display.
- * @param {Array<Object>} signals - Array of signal data objects
+ * @param {Object} data - Signal data from server
+ * @param {Array<Object>} data.signals - Array of signal data objects
+ * @param {Object} data.timescale - Timescale information
  */
-function processSignals(signals) {
+function processSignals(data) {
+    // Store timescale globally
+    window.timescale = data.timescale;
+    
     // Build hierarchy
-    const root = buildHierarchy(signals);
+    const root = buildHierarchy(data.signals);
     
     // Store root on signal tree element
     const signalTree = document.getElementById('signal-tree');
@@ -394,19 +399,33 @@ function processSignals(signals) {
     signalTree.appendChild(treeElement);
     
     // Initialize virtual scrolling with all signals
-    virtualScroll.initialize(signals);
+    virtualScroll.initialize(data.signals);
     
     // Initialize timeline if signals exist
-    if (signals.length > 0 && signals[0].data && signals[0].data.length > 0) {
-        cursor.startTime = signals[0].data[0].time;
-        cursor.endTime = signals[0].data[signals[0].data.length - 1].time;
-        cursor.currentTime = cursor.startTime;
+    if (data.signals.length > 0) {
+        // Find the global time range across all signals
+        let globalStartTime = Infinity;
+        let globalEndTime = -Infinity;
         
-        const timeline = document.getElementById('timeline');
-        if (timeline) {
-            cursor.canvases.push(timeline);
-            timeline.onclick = handleCanvasClick;
-            drawTimeline(timeline, cursor.startTime, cursor.endTime);
+        data.signals.forEach(signal => {
+            if (signal.data && signal.data.length > 0) {
+                globalStartTime = Math.min(globalStartTime, signal.data[0].time);
+                globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
+            }
+        });
+        
+        // Only proceed if we found valid time range
+        if (globalStartTime !== Infinity && globalEndTime !== -Infinity) {
+            cursor.startTime = globalStartTime;
+            cursor.endTime = globalEndTime;
+            cursor.currentTime = globalStartTime;
+            
+            const timeline = document.getElementById('timeline');
+            if (timeline) {
+                cursor.canvases.push(timeline);
+                timeline.onclick = handleCanvasClick;
+                drawTimeline(timeline, cursor.startTime, cursor.endTime);
+            }
         }
     }
 }

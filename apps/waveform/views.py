@@ -25,27 +25,102 @@ def get_signal_data(vcd):
         signal_names = vcd.get_signals()
         signals_data = []
         
+        # Get timescale information
+        timescale = vcd.get_timescale()
+        logger.debug(f"Raw timescale from VCD: {timescale}")
+        
+        if not timescale:
+            timescale = {'value': 1, 'unit': 'ns'}  # Default to 1ns if not specified
+        
+        # Convert timescale to a standard format
+        # Handle scientific notation in timescale
+        if 'timescale' in timescale:
+            # If we have scientific notation, use it directly
+            timescale_value = float(timescale['timescale'])
+            # The unit will be seconds in this case, convert to the appropriate unit
+            if timescale_value == 1e-12:  # 1ps
+                timescale_unit = 'ps'
+                timescale_value = 1
+            elif timescale_value == 1e-11:  # 10ps
+                timescale_unit = 'ps'
+                timescale_value = 10
+            elif timescale_value == 1e-10:  # 100ps
+                timescale_unit = 'ps'
+                timescale_value = 100
+            elif timescale_value == 1e-9:  # 1ns
+                timescale_unit = 'ns'
+                timescale_value = 1
+            else:
+                # Convert to ns
+                timescale_unit = 'ns'
+                timescale_value = timescale_value * 1e9
+        else:
+            # Use the standard format
+            timescale_value = float(timescale.get('value', 1))
+            if 'magnitude' in timescale:
+                timescale_value *= float(timescale['magnitude'])
+            timescale_unit = str(timescale.get('unit', 'ns')).lower()
+        
+        logger.debug(f"Parsed timescale: {timescale_value} {timescale_unit}")
+        
+        # Normalize unit to standard form (convert everything to ns)
+        unit_map = {
+            's': 1e9,    # 1s = 1e9 ns
+            'ms': 1e6,   # 1ms = 1e6 ns
+            'us': 1e3,   # 1us = 1e3 ns
+            'µs': 1e3,   # 1µs = 1e3 ns
+            'ns': 1,     # 1ns = 1 ns
+            'ps': 1e-3,  # 1ps = 0.001 ns
+            'fs': 1e-6   # 1fs = 0.000001 ns
+        }
+        
+        scale_factor = unit_map.get(timescale_unit, 1) * timescale_value
+        logger.debug(f"Scale factor for time values: {scale_factor}")
+        
+        # Get first and last timestamps for debugging
+        first_time = None
+        last_time = None
+        
         for signal_name in signal_names:
             try:
                 signal = vcd[signal_name]
                 if hasattr(signal, 'tv'):
+                    # Scale time values to nanoseconds
                     data = [
-                        {'time': time, 'value': value}
+                        {'time': float(time) * scale_factor, 'value': value}
                         for time, value in signal.tv
                     ]
+                    if data:
+                        if first_time is None:
+                            first_time = data[0]['time']
+                            last_time = data[-1]['time']
+                        else:
+                            first_time = min(first_time, data[0]['time'])
+                            last_time = max(last_time, data[-1]['time'])
+                            
                     signals_data.append({
                         'name': signal_name,
                         'data': data
                     })
-                    logger.debug(f"Processed signal {signal_name} with {len(data)} data points")
             except Exception as e:
                 logger.error(f"Error processing signal {signal_name}: {str(e)}")
                 continue
+        
+        logger.debug(f"Time range in VCD: {first_time} to {last_time} ns")
                 
-        return sorted(signals_data, key=lambda x: x['name'])
+        return {
+            'signals': sorted(signals_data, key=lambda x: x['name']),
+            'timescale': {
+                'value': 1,  # Since we've normalized all times to ns
+                'unit': 'ns'
+            }
+        }
     except Exception as e:
         logger.error(f"Error getting signals: {str(e)}")
-        return []
+        return {
+            'signals': [],
+            'timescale': {'value': 1, 'unit': 'ns'}
+        }
 
 def parse_vcd_file(file_path):
     """Parse VCD file and extract signal data"""
@@ -97,14 +172,14 @@ def index(request):
                 return JsonResponse({
                     'success': False,
                     'message': str(e),
-                    'signals': []
+                    'signals': {'signals': [], 'timescale': {'value': 1, 'unit': 'ns'}}
                 })
             except Exception as e:
                 logger.exception("Error processing VCD file")
                 return JsonResponse({
                     'success': False,
                     'message': 'Server error processing file',
-                    'signals': []
+                    'signals': {'signals': [], 'timescale': {'value': 1, 'unit': 'ns'}}
                 })
         else:
             return JsonResponse({
@@ -130,12 +205,12 @@ def view_file(request, pk):
         return JsonResponse({
             'success': False,
             'message': str(e),
-            'signals': []
+            'signals': {'signals': [], 'timescale': {'value': 1, 'unit': 'ns'}}
         })
     except Exception as e:
         logger.exception("Error processing VCD file")
         return JsonResponse({
             'success': False,
             'message': 'Server error processing file',
-            'signals': []
+            'signals': {'signals': [], 'timescale': {'value': 1, 'unit': 'ns'}}
         }) 

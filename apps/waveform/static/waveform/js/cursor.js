@@ -9,7 +9,7 @@
  */
 
 import { clearAndRedraw, setZoom, zoomState, getVisibleTimeRange } from './waveform.js';
-import { getSignalValueAtTime } from './utils.js';
+import { getSignalValueAtTime, formatTime } from './utils.js';
 import { viewportToCanvasCoords, canvasXToTime } from './canvas.js';
 
 /**
@@ -38,7 +38,7 @@ export function updateCursorDisplay(newTime) {
     cursor.currentTime = boundedTime;
     
     // Update cursor time display
-    document.getElementById('cursor-time').textContent = `Cursor Time: ${boundedTime.toFixed(3)}`;
+    document.getElementById('cursor-time').textContent = `Cursor Time: ${formatTime(boundedTime)}`;
     
     // Update zoom center
     zoomState.center = boundedTime;
