@@ -54,6 +54,46 @@ export function selectWaveformStyle(signal, data) {
 }
 
 /**
+ * Calculates the minimum time difference between transitions in signal data.
+ * @param {Array<Object>} data - Signal data points
+ * @returns {number|null} Minimum time delta or null if no transitions
+ */
+function calculateMinTimeDelta(data) {
+    let minDelta = Infinity;
+    for (let i = 1; i < data.length; i++) {
+        const delta = data[i].time - data[i-1].time;
+        if (delta > 0) { // Ignore simultaneous transitions
+            minDelta = Math.min(minDelta, delta);
+        }
+    }
+    return minDelta === Infinity ? null : minDelta;
+}
+
+/**
+ * Calculates maximum zoom level based on signal characteristics and display width.
+ * @param {Array<Object>} data - Signal data points
+ * @param {number} canvasWidth - Width of the display canvas in pixels
+ * @returns {number} Maximum zoom level
+ */
+function calculateMaxZoom(data, canvasWidth) {
+    if (!data || data.length < 2) return 10; // Default if insufficient data
+    
+    const totalTimeSpan = data[data.length - 1].time - data[0].time;
+    const minTimeDelta = calculateMinTimeDelta(data);
+    
+    if (!minTimeDelta) return 10; // Fallback to default if no transitions
+    
+    // We want the smallest time delta to be at least 20 pixels wide at max zoom
+    const minPixelsBetweenTransitions = 20;
+    
+    // Calculate how many times we need to zoom in to make minTimeDelta occupy minPixelsBetweenTransitions pixels
+    const maxZoom = (canvasWidth / minPixelsBetweenTransitions) * (totalTimeSpan / minTimeDelta);
+    
+    // Cap the zoom at 100000x to prevent extreme values, but allow much higher zoom than before
+    return Math.min(Math.max(10, maxZoom), 100000);
+}
+
+/**
  * State object for managing zoom level and center position.
  * Controls the visible portion of the waveform display.
  * @type {Object}
@@ -66,7 +106,20 @@ export const zoomState = {
     level: 1,
     center: 0,
     MIN_ZOOM: 1,
-    MAX_ZOOM: 10
+    MAX_ZOOM: 10,
+    
+    /**
+     * Updates the maximum zoom level based on signal data.
+     * @param {Array<Object>} data - Signal data points
+     * @param {number} canvasWidth - Width of the display canvas
+     */
+    updateMaxZoom(data, canvasWidth) {
+        this.MAX_ZOOM = calculateMaxZoom(data, canvasWidth);
+        // Ensure current zoom level doesn't exceed new maximum
+        if (this.level > this.MAX_ZOOM) {
+            this.level = this.MAX_ZOOM;
+        }
+    }
 };
 
 /**

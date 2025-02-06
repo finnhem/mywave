@@ -133,12 +133,12 @@ function createSignalRow(signal) {
 
 /**
  * Updates the zoom level display in the UI.
- * Shows the current zoom level with one decimal place.
+ * Shows the current zoom level and maximum available zoom.
  */
 function updateZoomDisplay() {
     const zoomLevelElement = document.getElementById('zoom-level');
     if (zoomLevelElement) {
-        zoomLevelElement.textContent = `${zoomState.level.toFixed(1)}x`;
+        zoomLevelElement.textContent = `${zoomState.level.toFixed(1)}x / ${zoomState.MAX_ZOOM.toFixed(1)}x max`;
     }
 }
 
@@ -407,12 +407,18 @@ function processSignals(data) {
         let globalStartTime = Infinity;
         let globalEndTime = -Infinity;
         
+        // Collect all signal data points for zoom calculation
+        let allDataPoints = [];
         data.signals.forEach(signal => {
             if (signal.data && signal.data.length > 0) {
                 globalStartTime = Math.min(globalStartTime, signal.data[0].time);
                 globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
+                allDataPoints = allDataPoints.concat(signal.data);
             }
         });
+        
+        // Sort all data points by time to ensure proper delta calculation
+        allDataPoints.sort((a, b) => a.time - b.time);
         
         // Only proceed if we found valid time range
         if (globalStartTime !== Infinity && globalEndTime !== -Infinity) {
@@ -424,6 +430,12 @@ function processSignals(data) {
             if (timeline) {
                 cursor.canvases.push(timeline);
                 timeline.onclick = handleCanvasClick;
+                
+                // Update max zoom based on all signal data points
+                if (allDataPoints.length > 0) {
+                    zoomState.updateMaxZoom(allDataPoints, timeline.clientWidth);
+                }
+                
                 drawTimeline(timeline, cursor.startTime, cursor.endTime);
             }
         }
