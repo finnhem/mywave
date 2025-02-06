@@ -94,21 +94,28 @@ export function canvasXToTime(x, startTime, endTime, canvasWidth) {
 }
 
 /**
- * Draws a vertical cursor line on the canvas.
- * The cursor indicates the current time position.
+ * Draws a cursor line on the canvas at the specified time position.
  * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
- * @param {number} x - X coordinate in canvas space
+ * @param {number} time - Time value to draw cursor at
+ * @param {number} startTime - Start time of visible range
+ * @param {number} endTime - End time of visible range
+ * @param {number} width - Canvas width in pixels
  * @param {number} height - Canvas height in pixels
  */
-export function drawCursor(ctx, x, height) {
-    ctx.save();
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(Math.round(x) + 0.5, 0);
-    ctx.lineTo(Math.round(x) + 0.5, height);
-    ctx.stroke();
-    ctx.restore();
+export function drawCursor(ctx, time, startTime, endTime, width, height) {
+    const x = timeToCanvasX(time, startTime, endTime, width);
+    
+    // Only draw if cursor is in visible range
+    if (x >= -1 && x <= width + 1) {
+        ctx.save();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x) + 0.5, 0);
+        ctx.lineTo(Math.round(x) + 0.5, height);
+        ctx.stroke();
+        ctx.restore();
+    }
 }
 
 /**

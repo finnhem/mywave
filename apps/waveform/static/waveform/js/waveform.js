@@ -14,6 +14,45 @@ import { cursor } from './cursor.js';
 import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas.js';
 
 /**
+ * Enum for waveform rendering styles.
+ * @readonly
+ * @enum {string}
+ */
+export const WaveformStyle = {
+    LOGIC: 'logic',  // Single-bit digital signals
+    DATA: 'data'     // Multi-bit bus signals
+};
+
+/**
+ * Determines the appropriate waveform style based on signal properties.
+ * @param {Object} signal - Signal object containing metadata
+ * @param {number} [signal.width] - Bit width of the signal (optional)
+ * @param {Array<Object>} data - Signal data points to infer width from if not provided
+ * @returns {WaveformStyle} The selected rendering style
+ */
+export function selectWaveformStyle(signal, data) {
+    // If width is explicitly provided, use it
+    if (signal && signal.width !== undefined) {
+        return signal.width === 1 ? WaveformStyle.LOGIC : WaveformStyle.DATA;
+    }
+    
+    // Otherwise infer from data values
+    if (data && data.length > 0) {
+        const firstValue = data[0].value;
+        // Check if the value is a binary string (0/1) or has 'b' prefix
+        if (firstValue === '0' || firstValue === '1' || 
+            firstValue === 'b0' || firstValue === 'b1') {
+            return WaveformStyle.LOGIC;
+        }
+        // Otherwise treat as data bus
+        return WaveformStyle.DATA;
+    }
+    
+    // Default to logic style if no information available
+    return WaveformStyle.LOGIC;
+}
+
+/**
  * State object for managing zoom level and center position.
  * Controls the visible portion of the waveform display.
  * @type {Object}
@@ -91,7 +130,7 @@ export function clearAndRedraw(canvas) {
     } else {
         const signalData = canvas.signalData;
         if (signalData) {
-            drawWaveform(canvas, signalData);
+            drawWaveform(canvas, signalData, canvas.signal);
         }
     }
 }
@@ -114,15 +153,31 @@ function getYForValue(value, height) {
 }
 
 /**
- * Draws a digital waveform on the given canvas.
- * Renders signal transitions with proper scaling and highlighting.
- * Includes cursor display if within visible range.
+ * Draws a waveform on the canvas using the appropriate style.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
  * @param {Array<Object>} data - Signal data points
  * @param {number} data[].time - Time value of the data point
- * @param {string} data[].value - Signal value at the time point
+ * @param {string|number} data[].value - Signal value at the time point
+ * @param {Object} [signal] - Signal metadata (optional)
+ * @param {number} [signal.width] - Bit width of the signal
  */
-export function drawWaveform(canvas, data) {
+export function drawWaveform(canvas, data, signal = {}) {
+    const style = selectWaveformStyle(signal, data);
+    
+    if (style === WaveformStyle.LOGIC) {
+        drawLogicWave(canvas, data);
+    } else {
+        drawDataWave(canvas, data, signal);
+    }
+}
+
+/**
+ * Draws a single-bit logic waveform.
+ * @param {HTMLCanvasElement} canvas - Canvas to draw on
+ * @param {Array<Object>} data - Signal data points
+ * @private
+ */
+function drawLogicWave(canvas, data) {
     const { ctx, width, height } = updateCanvasResolution(canvas);
     
     if (!data || data.length === 0) return;
@@ -176,20 +231,90 @@ export function drawWaveform(canvas, data) {
         lastY = y;
     });
     
-    // Extend to end of canvas
-    if (lastX !== null && lastY !== null) {
+    // Extend to the end of canvas if needed
+    if (lastY !== null) {
         ctx.lineTo(width, lastY);
     }
     
     ctx.stroke();
     ctx.restore();
-
-    // Draw cursor if in view
+    
+    // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        const cursorX = timeToCanvasX(cursor.currentTime, visibleRange.start, visibleRange.end, width);
-        if (cursorX >= -1 && cursorX <= width + 1) {
-            drawCursor(ctx, cursorX, height);
+        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height);
+    }
+}
+
+/**
+ * Draws a multi-bit data waveform with trapezoidal transitions.
+ * @param {HTMLCanvasElement} canvas - Canvas to draw on
+ * @param {Array<Object>} data - Signal data points
+ * @param {Object} signal - Signal metadata
+ * @private
+ */
+function drawDataWave(canvas, data, signal) {
+    const { ctx, width, height } = updateCanvasResolution(canvas);
+    
+    if (!data || data.length === 0) return;
+    
+    const totalStartTime = data[0].time;
+    const totalEndTime = data[data.length - 1].time;
+    const visibleRange = getVisibleTimeRange(totalStartTime, totalEndTime);
+    
+    clearCanvas(ctx, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+    ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
+    ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
+    
+    const visibleData = data.filter(point => 
+        point.time >= visibleRange.start - 1 && 
+        point.time <= visibleRange.end + 1
+    );
+    
+    // Draw trapezoids for each data segment
+    for (let i = 0; i < visibleData.length - 1; i++) {
+        const current = visibleData[i];
+        const next = visibleData[i + 1];
+        
+        const x1 = Math.round(timeToCanvasX(current.time, visibleRange.start, visibleRange.end, width));
+        const x2 = Math.round(timeToCanvasX(next.time, visibleRange.start, visibleRange.end, width));
+        const y = height * 0.1; // Top of trapezoid
+        const h = height * 0.8; // Height of trapezoid
+        const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
+        
+        // Draw trapezoid
+        ctx.beginPath();
+        ctx.moveTo(x1, y + h);
+        ctx.lineTo(x1 + slope, y);
+        ctx.lineTo(x2 - slope, y);
+        ctx.lineTo(x2, y + h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw value text
+        const value = typeof current.value === 'string' ? current.value : 
+                     '0x' + current.value.toString(16).toUpperCase().padStart(Math.ceil(signal.width/4), '0');
+        ctx.fillStyle = 'black';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const textX = x1 + (x2 - x1) / 2;
+        const textY = y + h / 2;
+        
+        // Only draw text if there's enough space
+        if (x2 - x1 > 40) {
+            ctx.fillText(value, textX, textY);
         }
+    }
+    
+    ctx.restore();
+    
+    // Draw cursor if it exists
+    if (cursor.currentTime !== undefined) {
+        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height);
     }
 }
 
@@ -231,11 +356,8 @@ export function drawTimeline(canvas, startTime, endTime) {
         ctx.fillText(time.toFixed(1), x, height - 2);
     }
 
-    // Draw cursor if in view
+    // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        const cursorX = timeToCanvasX(cursor.currentTime, startTime, endTime, width);
-        if (cursorX >= -1 && cursorX <= width + 1) {
-            drawCursor(ctx, cursorX, height);
-        }
+        drawCursor(ctx, cursor.currentTime, startTime, endTime, width, height);
     }
-} 
+}
