@@ -3,14 +3,13 @@
  * Handles cursor state, movement, drawing, and time tracking.
  * Manages cursor position across multiple canvases and updates
  * the time display when cursor moves.
- * Integrates with zoom functionality to maintain cursor visibility
- * and proper positioning in zoomed views.
  * @module cursor
  */
 
-import { clearAndRedraw, setZoom, zoomState, getVisibleTimeRange } from './waveform.js';
+import { clearAndRedraw } from './waveform.js';
 import { getSignalValueAtTime, formatTime } from './utils.js';
 import { viewportToCanvasCoords, canvasXToTime } from './canvas.js';
+import { viewport } from './viewport.js';
 
 /**
  * Cursor state object
@@ -29,7 +28,6 @@ export const cursor = {
 
 /**
  * Updates cursor position and display.
- * Centers the zoomed view on the new cursor position.
  * @param {number} newTime - New cursor time position
  */
 export function updateCursorDisplay(newTime) {
@@ -39,9 +37,6 @@ export function updateCursorDisplay(newTime) {
     
     // Update cursor time display
     document.getElementById('cursor-time').textContent = `Cursor Time: ${formatTime(boundedTime)}`;
-    
-    // Update zoom center
-    zoomState.center = boundedTime;
     
     // Update all canvases and value displays
     cursor.canvases.forEach(canvas => {
@@ -66,7 +61,7 @@ export function handleCanvasClick(event) {
     const { x } = viewportToCanvasCoords(event.clientX, event.clientY, canvas);
     
     // Get the visible time range
-    const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
+    const visibleRange = viewport.getVisibleRange();
     
     // Convert x position to time
     const clickTime = canvasXToTime(x, visibleRange.start, visibleRange.end, canvas.width);

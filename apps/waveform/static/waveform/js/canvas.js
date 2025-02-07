@@ -5,9 +5,15 @@
  * - Coordinate system conversions (CSS/Canvas/Time)
  * - Common drawing operations
  * - Canvas state management
+ * - Canvas interaction utilities
  * All canvas operations should use these utilities to ensure consistent behavior.
  * @module canvas
  */
+
+import { clearAndRedraw } from './waveform.js';
+import { viewport } from './viewport.js';
+import { setZoom } from './zoom.js';
+import { cursor } from './cursor.js';
 
 /**
  * Updates canvas internal resolution to match display size and pixel density.
@@ -101,8 +107,9 @@ export function canvasXToTime(x, startTime, endTime, canvasWidth) {
  * @param {number} endTime - End time of visible range
  * @param {number} width - Canvas width in pixels
  * @param {number} height - Canvas height in pixels
+ * @param {HTMLCanvasElement} canvas - Canvas element
  */
-export function drawCursor(ctx, time, startTime, endTime, width, height) {
+export function drawCursor(ctx, time, startTime, endTime, width, height, canvas) {
     const x = timeToCanvasX(time, startTime, endTime, width);
     
     // Only draw if cursor is in visible range
@@ -130,4 +137,110 @@ export function clearCanvas(ctx, width, height) {
     ctx.resetTransform();
     ctx.clearRect(0, 0, width, height);
     ctx.restore();
+}
+
+/**
+ * State object for tracking drag operations on canvas.
+ * @type {Object}
+ */
+export const dragState = {
+    active: false,
+    startX: null,
+    currentX: null,
+    canvas: null
+};
+
+/**
+ * Draws a semi-transparent overlay rectangle on the canvas.
+ * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
+ * @param {number} startX - Starting X coordinate of selection
+ * @param {number} endX - Ending X coordinate of selection
+ * @param {number} height - Canvas height
+ * @param {string} fillStyle - Fill style for the overlay
+ * @param {string} strokeStyle - Stroke style for the borders
+ */
+export function drawOverlay(ctx, startX, endX, height, fillStyle = 'rgba(0, 102, 204, 0.2)', strokeStyle = 'rgba(0, 102, 204, 0.8)') {
+    const left = Math.min(startX, endX);
+    const width = Math.abs(endX - startX);
+    
+    ctx.save();
+    ctx.fillStyle = fillStyle;
+    ctx.fillRect(left, 0, width, height);
+    
+    // Draw borders
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(startX, 0);
+    ctx.lineTo(startX, height);
+    ctx.moveTo(endX, 0);
+    ctx.lineTo(endX, height);
+    ctx.stroke();
+    ctx.restore();
+}
+
+/**
+ * Starts a drag operation on the canvas.
+ * @param {MouseEvent} event - Mouse event
+ * @param {function} shouldStart - Function that determines if drag should start
+ * @returns {boolean} Whether the drag operation started
+ */
+export function startDrag(event, shouldStart) {
+    if (!shouldStart(event)) return false;
+    
+    event.preventDefault();
+    const canvas = event.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    
+    dragState.active = true;
+    dragState.startX = x;
+    dragState.currentX = x;
+    dragState.canvas = canvas;
+    
+    return true;
+}
+
+/**
+ * Updates the current drag position.
+ * @param {MouseEvent} event - Mouse event
+ * @returns {Object|null} Updated coordinates or null if not dragging
+ */
+export function updateDrag(event) {
+    if (!dragState.active) return null;
+    
+    event.preventDefault();
+    const canvas = dragState.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    
+    dragState.currentX = x;
+    
+    return {
+        startX: dragState.startX,
+        currentX: x,
+        width: rect.width
+    };
+}
+
+/**
+ * Ends the current drag operation.
+ * @returns {Object|null} Final drag coordinates or null if no drag was active
+ */
+export function endDrag() {
+    if (!dragState.active) return null;
+    
+    const result = {
+        canvas: dragState.canvas,
+        startX: dragState.startX,
+        endX: dragState.currentX
+    };
+    
+    // Reset state
+    dragState.active = false;
+    dragState.startX = null;
+    dragState.currentX = null;
+    dragState.canvas = null;
+    
+    return result;
 } 

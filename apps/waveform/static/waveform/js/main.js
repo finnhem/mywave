@@ -10,8 +10,16 @@
  */
 
 import { cursor, handleCanvasClick, moveCursorToStart, moveCursorToEnd } from './cursor.js';
-import { drawWaveform, drawTimeline, clearAndRedraw, setZoom, zoomState } from './waveform.js';
+import { drawWaveform, drawTimeline, clearAndRedraw } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
+import { viewport } from './viewport.js';
+import { 
+    calculateMinTimeDelta, 
+    handleWheelZoom, 
+    handleZoomIn, 
+    handleZoomOut,
+    initializeZoomHandlers
+} from './zoom.js';
 import {
     selectSignal,
     moveToPreviousTransition,
@@ -26,27 +34,6 @@ import {
     createTreeElement,
     toggleNodeSelection
 } from './hierarchy.js';
-
-/**
- * Handles mouse wheel zoom events on canvases.
- * Zooms in/out centered on mouse position.
- * @param {WheelEvent} event - Wheel event from canvas
- */
-function handleWheelZoom(event) {
-    event.preventDefault();
-    const canvas = event.target;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const timeRange = cursor.endTime - cursor.startTime;
-    const centerTime = cursor.startTime + (x / rect.width) * timeRange;
-    
-    if (event.deltaY < 0) {
-        setZoom(zoomState.level * 1.1, centerTime);
-    } else {
-        setZoom(zoomState.level / 1.1, centerTime);
-    }
-    updateZoomDisplay();
-}
 
 /**
  * Creates a signal row with name, value, and waveform display.
@@ -113,6 +100,9 @@ function createSignalRow(signal) {
         // Add wheel zoom support
         canvas.addEventListener('wheel', handleWheelZoom);
         
+        // Initialize zoom selection handlers
+        initializeZoomHandlers(canvas);
+        
         // Initial waveform draw
         requestAnimationFrame(() => {
             drawWaveform(canvas, signal.data);
@@ -129,37 +119,6 @@ function createSignalRow(signal) {
     row.appendChild(waveformDiv);
     
     return row;
-}
-
-/**
- * Updates the zoom level display in the UI.
- * Shows the current zoom level and maximum available zoom.
- */
-function updateZoomDisplay() {
-    const zoomLevelElement = document.getElementById('zoom-level');
-    if (zoomLevelElement) {
-        zoomLevelElement.textContent = `${zoomState.level.toFixed(1)}x / ${zoomState.MAX_ZOOM.toFixed(1)}x max`;
-    }
-}
-
-/**
- * Handles zoom in button click.
- * Increases zoom by 50% and centers on cursor position.
- */
-function handleZoomIn() {
-    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
-    setZoom(zoomState.level * 1.5, centerTime);
-    updateZoomDisplay();
-}
-
-/**
- * Handles zoom out button click.
- * Decreases zoom by 33% and centers on cursor position.
- */
-function handleZoomOut() {
-    const centerTime = cursor.currentTime || (cursor.startTime + (cursor.endTime - cursor.startTime) / 2);
-    setZoom(zoomState.level / 1.5, centerTime);
-    updateZoomDisplay();
 }
 
 /**
@@ -192,10 +151,11 @@ function setupEventHandlers() {
     if (zoomIn) zoomIn.onclick = handleZoomIn;
     if (zoomOut) zoomOut.onclick = handleZoomOut;
 
-    // Add wheel zoom support to timeline
+    // Set up timeline zoom and wheel handlers
     const timeline = document.getElementById('timeline');
     if (timeline) {
         timeline.addEventListener('wheel', handleWheelZoom);
+        initializeZoomHandlers(timeline);
     }
 
     // Set up select/deselect all buttons
@@ -422,6 +382,10 @@ function processSignals(data) {
         
         // Only proceed if we found valid time range
         if (globalStartTime !== Infinity && globalEndTime !== -Infinity) {
+            // Initialize viewport with total time range
+            viewport.setTotalTimeRange(globalStartTime, globalEndTime);
+            
+            // Initialize cursor
             cursor.startTime = globalStartTime;
             cursor.endTime = globalEndTime;
             cursor.currentTime = globalStartTime;
@@ -433,10 +397,13 @@ function processSignals(data) {
                 
                 // Update max zoom based on all signal data points
                 if (allDataPoints.length > 0) {
-                    zoomState.updateMaxZoom(allDataPoints, timeline.clientWidth);
+                    const minTimeDelta = calculateMinTimeDelta(allDataPoints);
+                    if (minTimeDelta) {
+                        viewport.updateMaxZoom(minTimeDelta, timeline.clientWidth);
+                    }
                 }
                 
-                drawTimeline(timeline, cursor.startTime, cursor.endTime);
+                drawTimeline(timeline);
             }
         }
     }
@@ -479,6 +446,16 @@ function uploadVCD() {
             console.error('Upload error:', error);
         }
     };
+}
+
+function initializeTimeline() {
+    const timelineCanvas = document.getElementById('timeline');
+    if (!timelineCanvas) return;
+    
+    // Initialize zoom handlers
+    initializeZoomHandlers(timelineCanvas);
+    
+    // ... rest of timeline initialization ...
 }
 
 // Initialize application when DOM is ready

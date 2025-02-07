@@ -4,7 +4,6 @@
  * Features include:
  * - Waveform rendering with signal transitions
  * - Timeline display with time markers
- * - Zoom controls with dynamic view updates
  * - Cursor integration
  * - Signal selection highlighting
  * @module waveform
@@ -13,6 +12,7 @@
 import { cursor } from './cursor.js';
 import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas.js';
 import { formatTime } from './utils.js';
+import { viewport } from './viewport.js';
 
 /**
  * Enum for waveform rendering styles.
@@ -54,89 +54,13 @@ export function selectWaveformStyle(signal, data) {
 }
 
 /**
- * Calculates the minimum time difference between transitions in signal data.
- * @param {Array<Object>} data - Signal data points
- * @returns {number|null} Minimum time delta or null if no transitions
- */
-function calculateMinTimeDelta(data) {
-    let minDelta = Infinity;
-    for (let i = 1; i < data.length; i++) {
-        const delta = data[i].time - data[i-1].time;
-        if (delta > 0) { // Ignore simultaneous transitions
-            minDelta = Math.min(minDelta, delta);
-        }
-    }
-    return minDelta === Infinity ? null : minDelta;
-}
-
-/**
- * Calculates maximum zoom level based on signal characteristics and display width.
- * @param {Array<Object>} data - Signal data points
- * @param {number} canvasWidth - Width of the display canvas in pixels
- * @returns {number} Maximum zoom level
- */
-function calculateMaxZoom(data, canvasWidth) {
-    if (!data || data.length < 2) return 10; // Default if insufficient data
-    
-    const totalTimeSpan = data[data.length - 1].time - data[0].time;
-    const minTimeDelta = calculateMinTimeDelta(data);
-    
-    if (!minTimeDelta) return 10; // Fallback to default if no transitions
-    
-    // We want the smallest time delta to be at least 20 pixels wide at max zoom
-    const minPixelsBetweenTransitions = 20;
-    
-    // Calculate how many times we need to zoom in to make minTimeDelta occupy minPixelsBetweenTransitions pixels
-    const maxZoom = (canvasWidth / minPixelsBetweenTransitions) * (totalTimeSpan / minTimeDelta);
-    
-    // Cap the zoom at 100000x to prevent extreme values, but allow much higher zoom than before
-    return Math.min(Math.max(10, maxZoom), 100000);
-}
-
-/**
- * State object for managing zoom level and center position.
- * Controls the visible portion of the waveform display.
- * @type {Object}
- * @property {number} level - Current zoom level (1 = no zoom)
- * @property {number} center - Time value at center of view
- * @property {number} MIN_ZOOM - Minimum allowed zoom level
- * @property {number} MAX_ZOOM - Maximum allowed zoom level
- */
-export const zoomState = {
-    level: 1,
-    center: 0,
-    MIN_ZOOM: 1,
-    MAX_ZOOM: 10,
-    
-    /**
-     * Updates the maximum zoom level based on signal data.
-     * @param {Array<Object>} data - Signal data points
-     * @param {number} canvasWidth - Width of the display canvas
-     */
-    updateMaxZoom(data, canvasWidth) {
-        this.MAX_ZOOM = calculateMaxZoom(data, canvasWidth);
-        // Ensure current zoom level doesn't exceed new maximum
-        if (this.level > this.MAX_ZOOM) {
-            this.level = this.MAX_ZOOM;
-        }
-    }
-};
-
-/**
- * Sets the zoom level and updates the view center.
- * Redraws all canvases if the zoom level changes.
- * @param {number} newLevel - New zoom level to set (clamped between MIN_ZOOM and MAX_ZOOM)
+ * Sets the zoom level and updates the view.
+ * @param {number} newLevel - New zoom level to set
  * @param {number} [centerTime] - Optional time value to center the view on
  */
 export function setZoom(newLevel, centerTime) {
-    const oldLevel = zoomState.level;
-    zoomState.level = Math.max(zoomState.MIN_ZOOM, Math.min(zoomState.MAX_ZOOM, newLevel));
-    
-    if (centerTime !== undefined) {
-        zoomState.center = centerTime;
-    }
-    
-    if (oldLevel !== zoomState.level) {
+    if (viewport.setZoom(newLevel, centerTime)) {
+        // Only redraw if zoom actually changed
         document.querySelectorAll('canvas').forEach(canvas => {
             clearAndRedraw(canvas);
         });
@@ -144,43 +68,12 @@ export function setZoom(newLevel, centerTime) {
 }
 
 /**
- * Calculates the visible time range based on current zoom settings.
- * Accounts for zoom level and ensures the range stays within signal bounds.
- * @param {number} totalStartTime - Start time of the entire signal range
- * @param {number} totalEndTime - End time of the entire signal range
- * @returns {Object} Visible time range
- * @returns {number} .start - Start time of visible range
- * @returns {number} .end - End time of visible range
- */
-export function getVisibleTimeRange(totalStartTime, totalEndTime) {
-    const totalRange = totalEndTime - totalStartTime;
-    const visibleRange = totalRange / zoomState.level;
-    
-    let start = zoomState.center - (visibleRange / 2);
-    let end = zoomState.center + (visibleRange / 2);
-    
-    // Clamp to total range
-    if (start < totalStartTime) {
-        start = totalStartTime;
-        end = start + visibleRange;
-    }
-    if (end > totalEndTime) {
-        end = totalEndTime;
-        start = end - visibleRange;
-    }
-    
-    return { start, end };
-}
-
-/**
  * Clears and redraws a canvas with updated content.
- * Handles both timeline and waveform canvases appropriately.
  * @param {HTMLCanvasElement} canvas - Canvas to redraw
  */
 export function clearAndRedraw(canvas) {
     if (canvas.id === 'timeline') {
-        const visibleRange = getVisibleTimeRange(cursor.startTime, cursor.endTime);
-        drawTimeline(canvas, visibleRange.start, visibleRange.end);
+        drawTimeline(canvas);
     } else {
         const signalData = canvas.signalData;
         if (signalData) {
@@ -210,10 +103,7 @@ function getYForValue(value, height) {
  * Draws a waveform on the canvas using the appropriate style.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
  * @param {Array<Object>} data - Signal data points
- * @param {number} data[].time - Time value of the data point
- * @param {string|number} data[].value - Signal value at the time point
  * @param {Object} [signal] - Signal metadata (optional)
- * @param {number} [signal.width] - Bit width of the signal
  */
 export function drawWaveform(canvas, data, signal = {}) {
     const style = selectWaveformStyle(signal, data);
@@ -236,9 +126,7 @@ function drawLogicWave(canvas, data) {
     
     if (!data || data.length === 0) return;
     
-    const totalStartTime = data[0].time;
-    const totalEndTime = data[data.length - 1].time;
-    const visibleRange = getVisibleTimeRange(totalStartTime, totalEndTime);
+    const visibleRange = viewport.getVisibleRange();
     
     // Clear the canvas with the current transform
     clearCanvas(ctx, canvas.width, canvas.height);
@@ -295,7 +183,7 @@ function drawLogicWave(canvas, data) {
     
     // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height);
+        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height, canvas);
     }
 }
 
@@ -311,9 +199,7 @@ function drawDataWave(canvas, data, signal) {
     
     if (!data || data.length === 0) return;
     
-    const totalStartTime = data[0].time;
-    const totalEndTime = data[data.length - 1].time;
-    const visibleRange = getVisibleTimeRange(totalStartTime, totalEndTime);
+    const visibleRange = viewport.getVisibleRange();
     
     clearCanvas(ctx, canvas.width, canvas.height);
     
@@ -327,7 +213,6 @@ function drawDataWave(canvas, data, signal) {
         point.time <= visibleRange.end + 1
     );
     
-    // Draw trapezoids for each data segment
     for (let i = 0; i < visibleData.length - 1; i++) {
         const current = visibleData[i];
         const next = visibleData[i + 1];
@@ -368,18 +253,15 @@ function drawDataWave(canvas, data, signal) {
     
     // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height);
+        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height, canvas);
     }
 }
 
 /**
  * Draws the timeline with time markers and cursor.
- * Displays time values at regular intervals and the current cursor position.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
- * @param {number} startTime - Start time of visible range
- * @param {number} endTime - End time of visible range
  */
-export function drawTimeline(canvas, startTime, endTime) {
+export function drawTimeline(canvas) {
     const { ctx, width, height } = updateCanvasResolution(canvas);
     clearCanvas(ctx, canvas.width, canvas.height);
     
@@ -396,16 +278,13 @@ export function drawTimeline(canvas, startTime, endTime) {
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
     
-    // Get visible time range based on zoom
-    const visibleRange = getVisibleTimeRange(startTime, endTime);
-    const visibleStart = visibleRange.start;
-    const visibleEnd = visibleRange.end;
+    const visibleRange = viewport.getVisibleRange();
     
     const numMarkers = 10;
     for (let i = 0; i <= numMarkers; i++) {
         const x = Math.round((i / numMarkers) * width) + 0.5;
         const y = Math.round(height/2) + 0.5;
-        const time = visibleStart + (i / numMarkers) * (visibleEnd - visibleStart);
+        const time = visibleRange.start + (i / numMarkers) * (visibleRange.end - visibleRange.start);
         
         // Draw marker line
         ctx.beginPath();
@@ -420,6 +299,6 @@ export function drawTimeline(canvas, startTime, endTime) {
 
     // Draw cursor if it exists
     if (cursor.currentTime !== undefined) {
-        drawCursor(ctx, cursor.currentTime, visibleStart, visibleEnd, width, height);
+        drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height, canvas);
     }
 }
