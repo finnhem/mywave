@@ -255,8 +255,8 @@ function drawDataWave(canvas, data, signal) {
         // Format value based on signal preference - only if not a special value
         let displayValue = rawValue;
         if (!isSpecialValue && window.formatSignalValue && signalName) {
-            // Use cached values for better performance
-            displayValue = window.formatSignalValue(rawValue, signalName);
+            // Use formatting with forceFormat=true to ensure the correct radix is displayed
+            displayValue = window.formatSignalValue(rawValue, signalName, true);
         }
         
         // Set fill style based on value and selection state

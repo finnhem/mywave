@@ -38,13 +38,16 @@ import {
 import {
     signalPreferences,
     formatSignalValue,
-    getSignalRadix
+    getSignalRadix,
+    updateSignalRadix
 } from './radix.js';
 
 // Make radix functionality globally accessible for other modules
 window.signalPreferences = signalPreferences;
 window.formatSignalValue = formatSignalValue;
 window.clearAndRedraw = clearAndRedraw;
+window.getSignalValueAtTime = getSignalValueAtTime;
+window.cursor = cursor;
 
 /**
  * Creates a signal row with name, value, and waveform display.
@@ -163,7 +166,7 @@ function createRadixToggleCell(signalName, signalData) {
     // Get current radix
     const initialRadix = signalPreferences.radix[signalName] || 'bin';
     
-    // Set display text and style
+    // Update display
     updateRadixDisplay(radixDisplay, initialRadix);
     
     // Add click event to toggle radix
@@ -172,33 +175,29 @@ function createRadixToggleCell(signalName, signalData) {
         
         // Get current radix (not the initial value)
         const currentRadix = signalPreferences.radix[signalName] || 'bin';
-        const newRadix = currentRadix === 'hex' ? 'bin' : 'hex';
-        signalPreferences.radix[signalName] = newRadix;
         
-        // Clear cache for this signal to force reformatting
-        signalPreferences.cachedValues[signalName] = {};
-        
-        // Update display
-        updateRadixDisplay(radixDisplay, newRadix);
-        
-        // Update value display
-        const valueCell = radixCell.parentNode.querySelector('.value-display');
-        if (valueCell && cursor.currentTime !== undefined && signalData?.length > 0) {
-            const value = getSignalValueAtTime(signalData, cursor.currentTime);
-            const formatted = formatSignalValue(value, signalName, true);
-            valueCell.querySelector('span').textContent = formatted;
+        // Cycle through available radix options: bin -> hex -> sdec -> udec -> bin
+        let newRadix;
+        switch (currentRadix) {
+            case 'bin':
+                newRadix = 'hex';
+                break;
+            case 'hex':
+                newRadix = 'sdec';
+                break;
+            case 'sdec':
+                newRadix = 'udec';
+                break;
+            case 'udec':
+            default:
+                newRadix = 'bin';
+                break;
         }
         
-        // Find all canvases for this signal and redraw them
-        document.querySelectorAll('.waveform-canvas-container canvas').forEach(canvas => {
-            if (canvas.signalName === signalName) {
-                if (typeof window.clearAndRedraw === 'function') {
-                    window.clearAndRedraw(canvas);
-                } else {
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }
+        // Update radix and UI
+        updateSignalRadix(signalName, newRadix, () => {
+            // Update the radix display
+            updateRadixDisplay(radixDisplay, newRadix);
         });
     });
     
@@ -209,14 +208,35 @@ function createRadixToggleCell(signalName, signalData) {
 function updateRadixDisplay(element, radix) {
     element.textContent = radix.toUpperCase();
     
-    // Remove existing classes
-    element.classList.remove('text-blue-600', 'text-red-600');
+    // Set title attribute for tooltip
+    let tooltipText;
+    switch (radix) {
+        case 'bin':
+            tooltipText = 'Binary - Click to change format';
+            break;
+        case 'hex':
+            tooltipText = 'Hexadecimal - Click to change format';
+            break;
+        case 'sdec':
+            tooltipText = 'Signed Decimal - Click to change format';
+            break;
+        case 'udec':
+            tooltipText = 'Unsigned Decimal - Click to change format';
+            break;
+    }
+    element.setAttribute('title', tooltipText);
     
     // Add appropriate classes based on radix
+    element.classList.remove('text-gray-500', 'text-indigo-600', 'text-green-600', 'text-blue-600');
+    
     if (radix === 'bin') {
+        element.classList.add('text-gray-500');
+    } else if (radix === 'hex') {
+        element.classList.add('text-indigo-600');
+    } else if (radix === 'sdec') {
+        element.classList.add('text-green-600');
+    } else if (radix === 'udec') {
         element.classList.add('text-blue-600');
-    } else {
-        element.classList.add('text-red-600');
     }
 }
 

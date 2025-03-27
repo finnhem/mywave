@@ -54,8 +54,9 @@ export function updateCursorDisplay(newTime) {
             }
             
             // Format value according to signal preferences using the global function
+            // Force format to ignore cache and ensure the correct radix is displayed
             valueSpan.textContent = formatSignalValue ? 
-                formatSignalValue(value, canvas.signalName) : value;
+                formatSignalValue(value, canvas.signalName, true) : value;
             
             // Update no-data class if needed
             canvas.valueDisplay.classList.toggle('no-data', value === 'no data');
