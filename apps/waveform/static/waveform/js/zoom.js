@@ -79,11 +79,18 @@ export function updateZoomDisplay() {
 
 /**
  * Handles mouse wheel zoom events on canvases.
- * Zooms in/out centered on mouse position.
+ * Zooms in/out centered on mouse position only when Ctrl key is pressed.
+ * Otherwise allows normal page scrolling.
  * @param {WheelEvent} event - Wheel event from canvas
  */
 export function handleWheelZoom(event) {
+    // Only zoom if Ctrl key is pressed, otherwise allow normal scrolling
+    if (!event.ctrlKey) {
+        return;
+    }
+    
     event.preventDefault();
+    
     const canvas = event.target;
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
