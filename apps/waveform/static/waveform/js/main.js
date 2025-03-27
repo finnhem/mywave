@@ -38,8 +38,7 @@ import {
 import {
     signalPreferences,
     formatSignalValue,
-    toggleSignalRadix,
-    initValueCell
+    getSignalRadix
 } from './radix.js';
 
 // Make radix functionality globally accessible for other modules
@@ -61,7 +60,7 @@ window.clearAndRedraw = clearAndRedraw;
 function createSignalRow(signal) {
     // Create row container with Tailwind classes
     const row = document.createElement('div');
-    row.className = 'grid grid-cols-[300px_100px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
+    row.className = 'grid grid-cols-[300px_100px_50px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
     
     // Create signal name cell
     const nameCell = document.createElement('div');
@@ -69,29 +68,10 @@ function createSignalRow(signal) {
     nameCell.textContent = signal.name;
     
     // Create value display cell
-    const valueCell = document.createElement('div');
-    valueCell.className = 'signal-value-cell flex items-center w-full cursor-pointer';
-    initValueCell(valueCell, signal.name);
+    const valueCell = createValueCell(signal.name, signal.data, 0);
     
-    // Create span for text content
-    const valueText = document.createElement('span');
-    valueText.className = 'text-sm font-mono w-full text-left px-2.5';
-    
-    if (!signal.data || signal.data.length === 0) {
-        valueText.classList.add('text-gray-400');
-        valueText.textContent = 'no data';
-    } else {
-        const value = getSignalValueAtTime(signal.data, 0);
-        valueText.textContent = formatSignalValue(value, signal.name);
-        
-        // Add toggle functionality
-        valueCell.onclick = (e) => {
-            e.stopPropagation();
-            toggleSignalRadix(signal.name, valueCell, signal.data, getSignalValueAtTime, cursor);
-        };
-    }
-    
-    valueCell.appendChild(valueText);
+    // Create radix toggle button cell
+    const radixCell = createRadixToggleCell(signal.name, signal.data);
     
     // Create waveform cell - set exact height
     const waveformCell = document.createElement('div');
@@ -106,6 +86,7 @@ function createSignalRow(signal) {
     canvas.signalData = signal.data;
     canvas.valueDisplay = valueCell;
     canvas.signalName = signal.name;
+    canvas.radixToggle = radixCell;
     
     // Add event handlers if signal has data
     if (signal.data && signal.data.length > 0) {
@@ -143,9 +124,100 @@ function createSignalRow(signal) {
     // Assemble row
     row.appendChild(nameCell);
     row.appendChild(valueCell);
+    row.appendChild(radixCell);
     row.appendChild(waveformCell);
     
     return row;
+}
+
+function createValueCell(signalName, signalData, time) {
+    // Create value cell
+    const valueCell = document.createElement('div');
+    valueCell.classList.add('value-display', 'flex', 'items-center', 'justify-end', 'min-w-[80px]', 'pr-2', 'pl-2');
+    
+    // Create span for text content
+    const textSpan = document.createElement('span');
+    textSpan.className = 'font-mono text-sm';
+    valueCell.appendChild(textSpan);
+    
+    // If signal data is available, update text content
+    if (signalData && signalData.length > 0) {
+        const value = getSignalValueAtTime(signalData, time);
+        textSpan.textContent = formatSignalValue(value, signalName);
+    } else {
+        textSpan.textContent = "--";
+    }
+    
+    return valueCell;
+}
+
+function createRadixToggleCell(signalName, signalData) {
+    // Create radix cell
+    const radixCell = document.createElement('div');
+    radixCell.classList.add('flex', 'justify-center', 'items-center');
+    
+    // Create radix display element
+    const radixDisplay = document.createElement('div');
+    radixDisplay.className = 'text-xs uppercase font-bold cursor-pointer';
+    
+    // Get current radix
+    const initialRadix = signalPreferences.radix[signalName] || 'bin';
+    
+    // Set display text and style
+    updateRadixDisplay(radixDisplay, initialRadix);
+    
+    // Add click event to toggle radix
+    radixDisplay.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // Get current radix (not the initial value)
+        const currentRadix = signalPreferences.radix[signalName] || 'bin';
+        const newRadix = currentRadix === 'hex' ? 'bin' : 'hex';
+        signalPreferences.radix[signalName] = newRadix;
+        
+        // Clear cache for this signal to force reformatting
+        signalPreferences.cachedValues[signalName] = {};
+        
+        // Update display
+        updateRadixDisplay(radixDisplay, newRadix);
+        
+        // Update value display
+        const valueCell = radixCell.parentNode.querySelector('.value-display');
+        if (valueCell && cursor.currentTime !== undefined && signalData?.length > 0) {
+            const value = getSignalValueAtTime(signalData, cursor.currentTime);
+            const formatted = formatSignalValue(value, signalName, true);
+            valueCell.querySelector('span').textContent = formatted;
+        }
+        
+        // Find all canvases for this signal and redraw them
+        document.querySelectorAll('.waveform-canvas-container canvas').forEach(canvas => {
+            if (canvas.signalName === signalName) {
+                if (typeof window.clearAndRedraw === 'function') {
+                    window.clearAndRedraw(canvas);
+                } else {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+        });
+    });
+    
+    radixCell.appendChild(radixDisplay);
+    return radixCell;
+}
+
+function updateRadixDisplay(element, radix) {
+    element.textContent = radix.toUpperCase();
+    
+    // Remove existing classes
+    element.classList.remove('text-blue-600', 'text-red-600');
+    
+    // Add appropriate classes based on radix
+    if (radix === 'bin') {
+        element.classList.add('text-blue-600');
+    } else {
+        element.classList.add('text-red-600');
+    }
 }
 
 /**

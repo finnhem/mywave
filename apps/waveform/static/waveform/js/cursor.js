@@ -45,17 +45,19 @@ export function updateCursorDisplay(newTime) {
         if (canvas.valueDisplay) {
             const value = getSignalValueAtTime(canvas.signalData, boundedTime);
             
-            // Get or create the span element
+            // Get the value span element
             let valueSpan = canvas.valueDisplay.querySelector('span');
             if (!valueSpan) {
                 valueSpan = document.createElement('span');
-                valueSpan.className = 'text-sm font-mono w-full text-right px-2.5';
+                valueSpan.className = 'font-mono text-sm';
                 canvas.valueDisplay.appendChild(valueSpan);
             }
             
             // Format value according to signal preferences using the global function
             valueSpan.textContent = formatSignalValue ? 
                 formatSignalValue(value, canvas.signalName) : value;
+            
+            // Update no-data class if needed
             canvas.valueDisplay.classList.toggle('no-data', value === 'no data');
         }
     });
