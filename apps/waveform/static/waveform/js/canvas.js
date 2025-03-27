@@ -116,7 +116,7 @@ export function drawCursor(ctx, time, startTime, endTime, width, height, canvas)
     if (x >= -1 && x <= width + 1) {
         ctx.save();
         ctx.strokeStyle = 'black';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(Math.round(x) + 0.5, 0);
         ctx.lineTo(Math.round(x) + 0.5, height);
