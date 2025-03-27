@@ -208,17 +208,35 @@ function drawDataWave(canvas, data, signal) {
     ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
     ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
     
-    const visibleData = data.filter(point => 
-        point.time >= visibleRange.start - 1 && 
+    // Find points just outside the visible range on both sides
+    const initialPoint = data.findLast(point => point.time <= visibleRange.start);
+    const finalPoint = data.find(point => point.time > visibleRange.end);
+    
+    // Get points within the visible range
+    let visibleData = data.filter(point => 
+        point.time >= visibleRange.start - 1 &&
         point.time <= visibleRange.end + 1
     );
+    
+    // Add boundary points if they exist and aren't already included
+    if (initialPoint && !visibleData.includes(initialPoint)) {
+        visibleData = [initialPoint, ...visibleData];
+    }
+    if (finalPoint && !visibleData.includes(finalPoint)) {
+        visibleData = [...visibleData, finalPoint];
+    }
     
     for (let i = 0; i < visibleData.length - 1; i++) {
         const current = visibleData[i];
         const next = visibleData[i + 1];
         
+        // Convert times to canvas coordinates
         const x1 = Math.round(timeToCanvasX(current.time, visibleRange.start, visibleRange.end, width));
         const x2 = Math.round(timeToCanvasX(next.time, visibleRange.start, visibleRange.end, width));
+        
+        // Skip if segment is completely outside viewport
+        if (x2 < -1 || x1 > width + 1) continue;
+        
         const y = height * 0.1; // Top of trapezoid
         const h = height * 0.8; // Height of trapezoid
         const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
@@ -230,6 +248,8 @@ function drawDataWave(canvas, data, signal) {
         ctx.lineTo(x2 - slope, y);
         ctx.lineTo(x2, y + h);
         ctx.closePath();
+        
+        // Fill and stroke in correct order
         ctx.fill();
         ctx.stroke();
         
@@ -243,10 +263,21 @@ function drawDataWave(canvas, data, signal) {
         const textX = x1 + (x2 - x1) / 2;
         const textY = y + h / 2;
         
-        // Only draw text if there's enough space
-        if (x2 - x1 > 40) {
+        // Calculate visible width of the segment
+        const visibleX1 = Math.max(0, x1);
+        const visibleX2 = Math.min(width, x2);
+        const visibleWidth = visibleX2 - visibleX1;
+        
+        // Measure text width
+        const textWidth = ctx.measureText(value).width;
+        
+        // Only draw text if there's enough visible space and the text would fit with padding
+        if (visibleWidth > Math.max(40, textWidth + 20) && textX >= 0 && textX <= width) {
             ctx.fillText(value, textX, textY);
         }
+        
+        // Reset fill style for next trapezoid
+        ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
     }
     
     ctx.restore();
