@@ -18,6 +18,7 @@ import {
     handleWheelZoom, 
     handleZoomIn, 
     handleZoomOut,
+    handleZoomFull,
     initializeZoomHandlers
 } from './zoom.js';
 import {
@@ -148,8 +149,10 @@ function setupEventHandlers() {
     // Set up zoom controls
     const zoomIn = document.getElementById('zoom-in');
     const zoomOut = document.getElementById('zoom-out');
+    const zoomFull = document.getElementById('zoom-full');
     if (zoomIn) zoomIn.onclick = handleZoomIn;
     if (zoomOut) zoomOut.onclick = handleZoomOut;
+    if (zoomFull) zoomFull.onclick = handleZoomFull;
 
     // Set up timeline zoom and wheel handlers
     const timeline = document.getElementById('timeline');

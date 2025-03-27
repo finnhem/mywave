@@ -125,6 +125,15 @@ export function handleZoomOut() {
 }
 
 /**
+ * Handles full zoom button click.
+ * Resets zoom to 1x showing the complete waveform.
+ */
+export function handleZoomFull() {
+    setZoom(1);
+    updateZoomDisplay();
+}
+
+/**
  * Handles the start of a ctrl+drag zoom selection.
  * @param {MouseEvent} event - Mouse event
  */
