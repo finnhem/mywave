@@ -1,0 +1,28 @@
+$date
+   2023-10-01
+$end
+$version
+   VCD generator for testing
+$end
+$timescale
+   1ns
+$end
+$scope module test $end
+$var wire 8 a sig $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b00000000 a
+$end
+#10
+b00000101 a
+#20
+b11111111 a
+#30
+b10000000 a
+#40
+b10101010 a
+#50
+b00001111 a
+#60
