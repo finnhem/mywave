@@ -241,6 +241,21 @@ function drawDataWave(canvas, data, signal) {
         const h = height * 0.8; // Height of trapezoid
         const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
         
+        // Set fill style based on value and selection state
+        const value = typeof current.value === 'string' ? current.value : 
+                     '0x' + current.value.toString(16).toUpperCase().padStart(Math.ceil(signal.width/4), '0');
+        
+        if (value === 'X' || value === 'x') {
+            ctx.fillStyle = canvas.classList.contains('selected') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
+        } else if (value === 'Z' || value === 'z') {
+            ctx.fillStyle = canvas.classList.contains('selected') ? '#93C5FD' : '#BFDBFE'; // Tailwind blue-300/200
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
+        } else {
+            ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+        }
+        
         // Draw trapezoid
         ctx.beginPath();
         ctx.moveTo(x1, y + h);
@@ -253,11 +268,18 @@ function drawDataWave(canvas, data, signal) {
         ctx.fill();
         ctx.stroke();
         
-        // Draw value text
-        const value = typeof current.value === 'string' ? current.value : 
-                     '0x' + current.value.toString(16).toUpperCase().padStart(Math.ceil(signal.width/4), '0');
-        ctx.fillStyle = 'black';
-        ctx.font = '12px monospace';
+        // Draw value text with bold style for X and Z
+        if (value === 'X' || value === 'x') {
+            ctx.fillStyle = canvas.classList.contains('selected') ? '#B91C1C' : '#DC2626'; // Tailwind red-700/600
+            ctx.font = 'bold 12px monospace';
+        } else if (value === 'Z' || value === 'z') {
+            ctx.fillStyle = canvas.classList.contains('selected') ? '#1D4ED8' : '#2563EB'; // Tailwind blue-700/600
+            ctx.font = 'bold 12px monospace';
+        } else {
+            ctx.fillStyle = 'black';
+            ctx.font = '12px monospace';
+        }
+        
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         const textX = x1 + (x2 - x1) / 2;
@@ -275,9 +297,6 @@ function drawDataWave(canvas, data, signal) {
         if (visibleWidth > Math.max(40, textWidth + 20) && textX >= 0 && textX <= width) {
             ctx.fillText(value, textX, textY);
         }
-        
-        // Reset fill style for next trapezoid
-        ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
     }
     
     ctx.restore();
