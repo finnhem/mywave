@@ -21,7 +21,7 @@ import { drawWaveform } from './waveform.js';
  */
 export function selectSignal(name, nameDiv, canvas) {
     // Clear previous selection
-    document.querySelectorAll('.signal-name.selected').forEach(div => div.classList.remove('selected'));
+    document.querySelectorAll('.signal-name-cell.selected').forEach(div => div.classList.remove('selected'));
     document.querySelectorAll('canvas.selected').forEach(c => c.classList.remove('selected'));
     
     // Set new selection

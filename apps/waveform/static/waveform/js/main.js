@@ -48,38 +48,44 @@ import {
  * @returns {HTMLElement} Created row element with signal display
  */
 function createSignalRow(signal) {
-    // Create row container with Tailwind classes - removed gap and padding
+    // Create row container with Tailwind classes
     const row = document.createElement('div');
     row.className = 'grid grid-cols-[300px_100px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
     
     // Create signal name cell
     const nameCell = document.createElement('div');
-    nameCell.className = 'px-2.5 overflow-hidden text-ellipsis whitespace-nowrap signal-name hover:text-blue-600 cursor-pointer flex items-center';
+    nameCell.className = 'signal-name-cell text-sm flex items-center px-2.5 overflow-hidden whitespace-nowrap text-ellipsis hover:text-blue-600';
     nameCell.textContent = signal.name;
     
     // Create value display cell
-    const valueDiv = document.createElement('div');
-    valueDiv.className = 'text-center font-mono text-sm flex items-center justify-center';
+    const valueCell = document.createElement('div');
+    valueCell.className = 'signal-value-cell flex items-center w-full';
+    
+    // Create span for text content
+    const valueText = document.createElement('span');
+    valueText.className = 'text-sm font-mono w-full text-right px-2.5';
     
     if (!signal.data || signal.data.length === 0) {
-        valueDiv.classList.add('text-gray-400');
-        valueDiv.textContent = 'no data';
+        valueText.classList.add('text-gray-400');
+        valueText.textContent = 'no data';
     } else {
-        valueDiv.textContent = getSignalValueAtTime(signal.data, 0);
+        valueText.textContent = getSignalValueAtTime(signal.data, 0);
     }
     
-    // Create waveform container - set exact height
-    const waveformDiv = document.createElement('div');
-    waveformDiv.className = 'waveform-canvas-container h-10';
+    valueCell.appendChild(valueText);
+    
+    // Create waveform cell - set exact height
+    const waveformCell = document.createElement('div');
+    waveformCell.className = 'waveform-canvas-container h-10';
     
     // Create and set up canvas
     const canvas = document.createElement('canvas');
     canvas.className = 'w-full h-full block';
-    waveformDiv.appendChild(canvas);
+    waveformCell.appendChild(canvas);
     
     // Store references and set up data
     canvas.signalData = signal.data;
-    canvas.valueDisplay = valueDiv;
+    canvas.valueDisplay = valueCell;
     
     // Add event handlers if signal has data
     if (signal.data && signal.data.length > 0) {
@@ -116,8 +122,8 @@ function createSignalRow(signal) {
     
     // Assemble row
     row.appendChild(nameCell);
-    row.appendChild(valueDiv);
-    row.appendChild(waveformDiv);
+    row.appendChild(valueCell);
+    row.appendChild(waveformCell);
     
     return row;
 }

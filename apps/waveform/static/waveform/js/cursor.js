@@ -43,7 +43,16 @@ export function updateCursorDisplay(newTime) {
         clearAndRedraw(canvas);
         if (canvas.valueDisplay) {
             const value = getSignalValueAtTime(canvas.signalData, boundedTime);
-            canvas.valueDisplay.textContent = value;
+            
+            // Get or create the span element
+            let valueSpan = canvas.valueDisplay.querySelector('span');
+            if (!valueSpan) {
+                valueSpan = document.createElement('span');
+                valueSpan.className = 'text-sm font-mono w-full text-right px-2.5';
+                canvas.valueDisplay.appendChild(valueSpan);
+            }
+            
+            valueSpan.textContent = value;
             canvas.valueDisplay.classList.toggle('no-data', value === 'no data');
         }
     });
