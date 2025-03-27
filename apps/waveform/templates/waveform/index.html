@@ -5,6 +5,39 @@
 <head>
     <title>Waveform Viewer</title>
     {% tailwind_css %}
+    <style>
+        /* Styles for signal value radix display */
+        .signal-value-cell[data-radix="bin"] {
+            background-color: rgba(219, 234, 254, 0.5); /* Light blue background */
+        }
+        .signal-value-cell[data-radix="hex"] {
+            background-color: rgba(254, 226, 226, 0.5); /* Light red background */
+        }
+        .signal-value-cell {
+            transition: background-color 0.2s ease;
+            border-radius: 4px;
+            position: relative;
+        }
+        .signal-value-cell:hover {
+            opacity: 0.8;
+            cursor: pointer;
+        }
+        .signal-value-cell::after {
+            content: attr(data-radix);
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            color: #333;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-weight: bold;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body class="p-4">
     <form id="upload-form" class="mb-4">

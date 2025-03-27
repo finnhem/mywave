@@ -10,6 +10,7 @@ import { clearAndRedraw } from './waveform.js';
 import { getSignalValueAtTime, formatTime } from './utils.js';
 import { viewportToCanvasCoords, canvasXToTime } from './canvas.js';
 import { viewport } from './viewport.js';
+import { formatSignalValue } from './radix.js';
 
 /**
  * Cursor state object
@@ -52,7 +53,9 @@ export function updateCursorDisplay(newTime) {
                 canvas.valueDisplay.appendChild(valueSpan);
             }
             
-            valueSpan.textContent = value;
+            // Format value according to signal preferences using the global function
+            valueSpan.textContent = formatSignalValue ? 
+                formatSignalValue(value, canvas.signalName) : value;
             canvas.valueDisplay.classList.toggle('no-data', value === 'no data');
         }
     });

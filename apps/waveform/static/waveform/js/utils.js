@@ -18,15 +18,7 @@ export function getSignalValueAtTime(data, time) {
     // Find the last value before or at the given time
     for (let i = data.length - 1; i >= 0; i--) {
         if (data[i].time <= time) {
-            const value = data[i].value;
-            // Format the value based on its prefix
-            if (value.startsWith('b')) {
-                return value.substring(1); // Remove 'b' prefix
-            } else if (value.startsWith('0x')) {
-                return value; // Keep hexadecimal as is
-            } else {
-                return value; // Return other values as is
-            }
+            return data[i].value;
         }
     }
     
@@ -58,4 +50,63 @@ export function formatTime(timeInNs) {
     } else {
         return `${(timeInNs * 1e6).toFixed(1)}fs`;
     }
+}
+
+/**
+ * Converts a binary string to hexadecimal.
+ * Handles 'b' prefix and special values (x, z).
+ * @param {string} value - Binary value to convert
+ * @returns {string} Hexadecimal representation
+ */
+export function binToHex(value) {
+    // Handle special values
+    if (value === 'x' || value === 'X') return 'x';
+    if (value === 'z' || value === 'Z') return 'z';
+    
+    // Remove 'b' prefix if present
+    const binStr = value.startsWith('b') ? value.slice(1) : value;
+    
+    // Handle single bit values
+    if (binStr === '0' || binStr === '1') return binStr;
+    
+    // Convert binary string to hex
+    // Pad with zeros to make length multiple of 4
+    const padded = binStr.padStart(Math.ceil(binStr.length / 4) * 4, '0');
+    let hex = '';
+    
+    // Convert each group of 4 bits to hex
+    for (let i = 0; i < padded.length; i += 4) {
+        const chunk = padded.slice(i, i + 4);
+        const hexDigit = parseInt(chunk, 2).toString(16);
+        hex += hexDigit;
+    }
+    
+    return hex;
+}
+
+/**
+ * Converts a hexadecimal string to binary.
+ * Handles special values (x, z).
+ * @param {string} value - Hex value to convert
+ * @returns {string} Binary representation with 'b' prefix
+ */
+export function hexToBin(value) {
+    // Handle special values
+    if (value === 'x' || value === 'X') return 'x';
+    if (value === 'z' || value === 'Z') return 'z';
+    
+    // Handle single digit values
+    if (value === '0' || value === '1') return value;
+    
+    // Convert each hex digit to 4 bits
+    let binary = '';
+    for (const digit of value) {
+        const bits = parseInt(digit, 16).toString(2).padStart(4, '0');
+        binary += bits;
+    }
+    
+    // Remove leading zeros (but keep at least one digit)
+    binary = binary.replace(/^0+(?=\d)/, '');
+    
+    return 'b' + binary;
 } 

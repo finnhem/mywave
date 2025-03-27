@@ -13,6 +13,7 @@ import { cursor } from './cursor.js';
 import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas.js';
 import { formatTime } from './utils.js';
 import { viewport } from './viewport.js';
+import { formatSignalValue } from './radix.js';
 
 /**
  * Enum for waveform rendering styles.
@@ -226,6 +227,9 @@ function drawDataWave(canvas, data, signal) {
         visibleData = [...visibleData, finalPoint];
     }
     
+    // Get the radix preference for this signal
+    const signalName = canvas.signalName;
+    
     for (let i = 0; i < visibleData.length - 1; i++) {
         const current = visibleData[i];
         const next = visibleData[i + 1];
@@ -241,14 +245,25 @@ function drawDataWave(canvas, data, signal) {
         const h = height * 0.8; // Height of trapezoid
         const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
         
-        // Set fill style based on value and selection state
-        const value = typeof current.value === 'string' ? current.value : 
+        // Get raw value and handle special cases (X, Z)
+        let rawValue = typeof current.value === 'string' ? current.value : 
                      '0x' + current.value.toString(16).toUpperCase().padStart(Math.ceil(signal.width/4), '0');
+                     
+        // Special case handling for X and Z values
+        const isSpecialValue = rawValue === 'X' || rawValue === 'x' || rawValue === 'Z' || rawValue === 'z';
         
-        if (value === 'X' || value === 'x') {
+        // Format value based on signal preference - only if not a special value
+        let displayValue = rawValue;
+        if (!isSpecialValue && window.formatSignalValue && signalName) {
+            // Use cached values for better performance
+            displayValue = window.formatSignalValue(rawValue, signalName);
+        }
+        
+        // Set fill style based on value and selection state
+        if (rawValue === 'X' || rawValue === 'x') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
-        } else if (value === 'Z' || value === 'z') {
+        } else if (rawValue === 'Z' || rawValue === 'z') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#93C5FD' : '#BFDBFE'; // Tailwind blue-300/200
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
         } else {
@@ -269,10 +284,10 @@ function drawDataWave(canvas, data, signal) {
         ctx.stroke();
         
         // Draw value text with bold style for X and Z
-        if (value === 'X' || value === 'x') {
+        if (rawValue === 'X' || rawValue === 'x') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#B91C1C' : '#DC2626'; // Tailwind red-700/600
             ctx.font = 'bold 12px monospace';
-        } else if (value === 'Z' || value === 'z') {
+        } else if (rawValue === 'Z' || rawValue === 'z') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#1D4ED8' : '#2563EB'; // Tailwind blue-700/600
             ctx.font = 'bold 12px monospace';
         } else {
@@ -291,11 +306,11 @@ function drawDataWave(canvas, data, signal) {
         const visibleWidth = visibleX2 - visibleX1;
         
         // Measure text width
-        const textWidth = ctx.measureText(value).width;
+        const textWidth = ctx.measureText(displayValue).width;
         
         // Only draw text if there's enough visible space and the text would fit with padding
         if (visibleWidth > Math.max(40, textWidth + 20) && textX >= 0 && textX <= width) {
-            ctx.fillText(value, textX, textY);
+            ctx.fillText(displayValue, textX, textY);
         }
     }
     

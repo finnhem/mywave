@@ -35,6 +35,17 @@ import {
     createTreeElement,
     toggleNodeSelection
 } from './hierarchy.js';
+import {
+    signalPreferences,
+    formatSignalValue,
+    toggleSignalRadix,
+    initValueCell
+} from './radix.js';
+
+// Make radix functionality globally accessible for other modules
+window.signalPreferences = signalPreferences;
+window.formatSignalValue = formatSignalValue;
+window.clearAndRedraw = clearAndRedraw;
 
 /**
  * Creates a signal row with name, value, and waveform display.
@@ -59,17 +70,25 @@ function createSignalRow(signal) {
     
     // Create value display cell
     const valueCell = document.createElement('div');
-    valueCell.className = 'signal-value-cell flex items-center w-full';
+    valueCell.className = 'signal-value-cell flex items-center w-full cursor-pointer';
+    initValueCell(valueCell, signal.name);
     
     // Create span for text content
     const valueText = document.createElement('span');
-    valueText.className = 'text-sm font-mono w-full text-right px-2.5';
+    valueText.className = 'text-sm font-mono w-full text-left px-2.5';
     
     if (!signal.data || signal.data.length === 0) {
         valueText.classList.add('text-gray-400');
         valueText.textContent = 'no data';
     } else {
-        valueText.textContent = getSignalValueAtTime(signal.data, 0);
+        const value = getSignalValueAtTime(signal.data, 0);
+        valueText.textContent = formatSignalValue(value, signal.name);
+        
+        // Add toggle functionality
+        valueCell.onclick = (e) => {
+            e.stopPropagation();
+            toggleSignalRadix(signal.name, valueCell, signal.data, getSignalValueAtTime, cursor);
+        };
     }
     
     valueCell.appendChild(valueText);
@@ -86,6 +105,7 @@ function createSignalRow(signal) {
     // Store references and set up data
     canvas.signalData = signal.data;
     canvas.valueDisplay = valueCell;
+    canvas.signalName = signal.name;
     
     // Add event handlers if signal has data
     if (signal.data && signal.data.length > 0) {
@@ -335,6 +355,16 @@ function updateDisplayedSignals() {
     // Initialize virtual scrolling with only selected signals
     // Only force recreation on first load
     virtualScroll.initialize(selectedSignals, !virtualScroll.container);
+    
+    // After updating displayed signals, redraw any visible canvases to reflect radix preferences
+    setTimeout(() => {
+        const visibleCanvases = document.querySelectorAll('.waveform-canvas-container canvas');
+        visibleCanvases.forEach(canvas => {
+            if (canvas.id !== 'timeline' && canvas.signalData) {
+                clearAndRedraw(canvas);
+            }
+        });
+    }, 0);
     
     // Redraw timeline if it exists
     if (timeline) {
