@@ -65,30 +65,64 @@ We use multiple tools for dependency management:
   - `package.json`: Frontend dependencies and scripts
   - `package-lock.json`: Lock file for npm dependencies
   - `tsconfig.json`: TypeScript configuration
+  - `biome.json`: Biome configuration for linting and formatting
+  - `rspack.config.js`: Rspack bundler configuration
 
 ## Development
 
-1. Apply database migrations:
+You'll need to run three processes for development:
+
+1. Apply database migrations first:
 ```bash
 python manage.py migrate
 ```
 
-2. Run Tailwind CSS:
+2. Start all development processes:
+
+**In terminal 1 - Tailwind CSS:**
 ```bash
 python manage.py tailwind start
 ```
+This watches and compiles your CSS changes
 
-3. Start TypeScript compilation in watch mode:
-```bash
-npm run watch
-```
-
-4. Start the development server:
+**In terminal 2 - Django server:**
 ```bash
 python manage.py runserver
 ```
+This runs the Django development server on http://localhost:8000
 
-5. Open your browser and navigate to `http://localhost:8000`
+**In terminal 3 - TypeScript/JavaScript:**
+```bash
+npm run watch
+```
+This watches and rebuilds your TypeScript/JavaScript files when they change
+
+3. Open your browser and navigate to `http://localhost:8000`
+
+All changes will be automatically recompiled:
+- Python files: Django auto-reloads
+- CSS/Tailwind: Auto-recompiled by Tailwind
+- TypeScript/JavaScript: Auto-rebuilt by Rspack
+- Templates: Django auto-reloads
+
+## Code Quality
+
+We use Biome for code quality:
+
+1. Format code:
+```bash
+npm run format
+```
+
+2. Lint code:
+```bash
+npm run lint
+```
+
+3. Check types and lint:
+```bash
+npm run check
+```
 
 ## Usage
 
@@ -122,7 +156,7 @@ mywave/
 │       │       └── js/
 │       │           ├── components/    # TypeScript UI components
 │       │           ├── types.ts       # TypeScript type definitions
-│       │           ├── waveform.ts    # Waveform rendering
+│       │           ├── main.ts        # Main waveform viewer
 │       │           ├── cursor.ts      # Cursor management
 │       │           ├── signal.ts      # Signal handling
 │       │           ├── radix.ts       # Value formatting
@@ -136,8 +170,8 @@ mywave/
 ```
 
 Key TypeScript modules:
+- `main.ts`: Main waveform viewer implementation
 - `types.ts`: Core type definitions and interfaces
-- `waveform.ts`: Waveform rendering and zoom functionality
 - `cursor.ts`: Cursor state and movement management
 - `signal.ts`: Signal selection and edge navigation
 - `radix.ts`: Signal value formatting and radix conversion
@@ -154,7 +188,8 @@ Key TypeScript modules:
 Please ensure:
 - All new code is written in TypeScript
 - Type definitions are provided for public APIs
-- Tests pass and no type errors exist
+- Code is formatted using Biome
+- All Biome checks pass
 
 ## License
 

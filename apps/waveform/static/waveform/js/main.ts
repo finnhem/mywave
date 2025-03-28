@@ -45,6 +45,9 @@ import {
 } from './radix';
 import { SignalRow } from './components/SignalRow';
 import type { Signal, SignalData, TimePoint, HierarchyNode } from './types';
+import { setupCursor } from './cursor';
+import { setupSignalHandlers } from './signal';
+import { setupZoomControls } from './zoom';
 
 // Extend Window interface to include our global properties
 declare global {
@@ -290,4 +293,94 @@ function setupEventHandlers(): void {
 }
 
 // Initialize application when DOM is ready
-document.addEventListener('DOMContentLoaded', setupEventHandlers); 
+document.addEventListener('DOMContentLoaded', setupEventHandlers);
+
+// Main waveform viewer implementation
+interface WaveformViewerOptions {
+  container: HTMLElement;
+  width: number;
+  height: number;
+  timeScale: number;
+}
+
+export class WaveformViewer {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private options: WaveformViewerOptions;
+
+  constructor(options: WaveformViewerOptions) {
+    this.options = options;
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = options.width;
+    this.canvas.height = options.height;
+    
+    const context = this.canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not get 2D context from canvas');
+    }
+    this.ctx = context;
+    
+    options.container.appendChild(this.canvas);
+    this.initialize();
+  }
+
+  private initialize(): void {
+    // Initialize cursor handling
+    this.canvas.addEventListener('click', handleCanvasClick);
+    cursor.canvases.push(this.canvas);
+
+    // Initialize signal navigation
+    const signalContainer = document.getElementById('signal-container');
+    if (signalContainer) {
+      signalContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.matches('[data-edge="next-rising"]')) {
+          findNextRisingEdge();
+        } else if (target.matches('[data-edge="next-falling"]')) {
+          findNextFallingEdge();
+        } else if (target.matches('[data-edge="prev-rising"]')) {
+          findPreviousRisingEdge();
+        } else if (target.matches('[data-edge="prev-falling"]')) {
+          findPreviousFallingEdge();
+        }
+      });
+    }
+
+    // Initialize zoom handling
+    this.canvas.addEventListener('wheel', handleWheelZoom);
+    initializeZoomHandlers();
+
+    // Start rendering
+    this.render();
+  }
+
+  private render(): void {
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Add initial rendering logic here
+    this.ctx.fillStyle = '#f0f0f0';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Update value displays
+    updateValueDisplays();
+    
+    // Request next frame
+    requestAnimationFrame(() => this.render());
+  }
+}
+
+// Initialize the waveform viewer when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  const container = document.getElementById('waveform-container');
+  if (!container) {
+    throw new Error('Could not find waveform container element');
+  }
+
+  new WaveformViewer({
+    container,
+    width: container.clientWidth,
+    height: container.clientHeight,
+    timeScale: 1,
+  });
+}); 
