@@ -41,6 +41,7 @@ import {
     getSignalRadix,
     updateSignalRadix
 } from './radix.js';
+import { SignalRow } from './components/SignalRow.js';
 
 // Make radix functionality globally accessible for other modules
 window.signalPreferences = signalPreferences;
@@ -48,266 +49,6 @@ window.formatSignalValue = formatSignalValue;
 window.clearAndRedraw = clearAndRedraw;
 window.getSignalValueAtTime = getSignalValueAtTime;
 window.cursor = cursor;
-
-/**
- * Creates a signal row with name, value, and waveform display.
- * Builds a responsive grid layout with Tailwind CSS classes.
- * Sets up event handlers for signal selection and cursor movement.
- * @param {Object} signal - Signal data object
- * @param {string} signal.name - Name of the signal
- * @param {Array<Object>} [signal.data] - Signal data points (optional)
- * @param {number} signal.data[].time - Time value of the data point
- * @param {string} signal.data[].value - Signal value at the time point
- * @returns {HTMLElement} Created row element with signal display
- */
-function createSignalRow(signal) {
-    // Create row container with Tailwind classes
-    const row = document.createElement('div');
-    row.className = 'grid grid-cols-[300px_100px_50px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
-    
-    // Create signal name cell
-    const nameCell = document.createElement('div');
-    nameCell.className = 'signal-name-cell text-sm flex items-center px-2.5 overflow-hidden whitespace-nowrap text-ellipsis hover:text-blue-600';
-    nameCell.textContent = signal.name;
-    
-    // Create value display cell
-    const valueCell = createValueCell(signal.name, signal.data, 0);
-    
-    // Create radix toggle button cell
-    const radixCell = createRadixToggleCell(signal.name, signal.data);
-    
-    // Create waveform cell - set exact height
-    const waveformCell = document.createElement('div');
-    waveformCell.className = 'waveform-canvas-container h-10';
-    
-    // Create and set up canvas
-    const canvas = document.createElement('canvas');
-    canvas.className = 'w-full h-full block';
-    waveformCell.appendChild(canvas);
-    
-    // Store references and set up data
-    canvas.signalData = signal.data;
-    canvas.valueDisplay = valueCell;
-    canvas.signalName = signal.name;
-    canvas.radixToggle = radixCell;
-    
-    // Add event handlers if signal has data
-    if (signal.data && signal.data.length > 0) {
-        cursor.canvases.push(canvas);
-        
-        // Set up click handlers for both name and canvas
-        const handleSelection = (event) => {
-            // If clicking canvas, handle cursor position first
-            if (event.currentTarget === canvas) {
-                handleCanvasClick(event);
-            }
-            
-            selectSignal(signal.name, nameCell, canvas);
-        };
-        
-        nameCell.onclick = handleSelection;
-        canvas.onclick = handleSelection;
-
-        // Add wheel zoom support
-        canvas.addEventListener('wheel', handleWheelZoom);
-        
-        // Initialize zoom selection handlers
-        initializeZoomHandlers(canvas);
-        
-        // Initial waveform draw
-        requestAnimationFrame(() => {
-            drawWaveform(canvas, signal.data);
-        });
-    } else {
-        // Clear canvas for signals without data
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    
-    // Assemble row
-    row.appendChild(nameCell);
-    row.appendChild(valueCell);
-    row.appendChild(radixCell);
-    row.appendChild(waveformCell);
-    
-    return row;
-}
-
-function createValueCell(signalName, signalData, time) {
-    // Create value cell
-    const valueCell = document.createElement('div');
-    valueCell.classList.add(
-        'value-display',
-        'flex',
-        'items-center',
-        'w-[120px]',  // Fixed width for consistent alignment
-        'pr-2',
-        'pl-2'
-    );
-    
-    // Create span for text content
-    const textSpan = document.createElement('span');
-    textSpan.className = 'font-mono text-sm w-full text-right tabular-nums';
-    valueCell.appendChild(textSpan);
-    
-    // If signal data is available, update text content
-    if (signalData && signalData.length > 0) {
-        const value = getSignalValueAtTime(signalData, time);
-        textSpan.textContent = formatSignalValue(value, signalName);
-    } else {
-        textSpan.textContent = "--";
-    }
-    
-    return valueCell;
-}
-
-function createRadixToggleCell(signalName, signalData) {
-    // Create radix cell
-    const radixCell = document.createElement('div');
-    radixCell.classList.add('flex', 'justify-center', 'items-center');
-    
-    // Create radix display element
-    const radixDisplay = document.createElement('div');
-    radixDisplay.className = 'text-xs uppercase font-bold cursor-pointer';
-    
-    // Get current radix
-    const initialRadix = signalPreferences.radix[signalName] || 'bin';
-    
-    // Update display
-    updateRadixDisplay(radixDisplay, initialRadix);
-    
-    // Add click event to toggle radix
-    radixDisplay.addEventListener('click', (e) => {
-        e.stopPropagation();
-        
-        // Get current radix (not the initial value)
-        const currentRadix = signalPreferences.radix[signalName] || 'bin';
-        
-        // Cycle through available radix options: bin -> hex -> sdec -> udec -> bin
-        let newRadix;
-        switch (currentRadix) {
-            case 'bin':
-                newRadix = 'hex';
-                break;
-            case 'hex':
-                newRadix = 'sdec';
-                break;
-            case 'sdec':
-                newRadix = 'udec';
-                break;
-            case 'udec':
-            default:
-                newRadix = 'bin';
-                break;
-        }
-        
-        // Update radix and UI
-        updateSignalRadix(signalName, newRadix, () => {
-            // Update the radix display
-            updateRadixDisplay(radixDisplay, newRadix);
-        });
-    });
-    
-    radixCell.appendChild(radixDisplay);
-    return radixCell;
-}
-
-function updateRadixDisplay(element, radix) {
-    element.textContent = radix.toUpperCase();
-    
-    // Set title attribute for tooltip
-    let tooltipText;
-    switch (radix) {
-        case 'bin':
-            tooltipText = 'Binary - Click to change format';
-            break;
-        case 'hex':
-            tooltipText = 'Hexadecimal - Click to change format';
-            break;
-        case 'sdec':
-            tooltipText = 'Signed Decimal - Click to change format';
-            break;
-        case 'udec':
-            tooltipText = 'Unsigned Decimal - Click to change format';
-            break;
-    }
-    element.setAttribute('title', tooltipText);
-    
-    // Add appropriate classes based on radix
-    element.classList.remove('text-gray-500', 'text-indigo-600', 'text-green-600', 'text-blue-600');
-    
-    if (radix === 'bin') {
-        element.classList.add('text-gray-500');
-    } else if (radix === 'hex') {
-        element.classList.add('text-indigo-600');
-    } else if (radix === 'sdec') {
-        element.classList.add('text-green-600');
-    } else if (radix === 'udec') {
-        element.classList.add('text-blue-600');
-    }
-}
-
-/**
- * Sets up event handlers for all interactive elements.
- * Binds handlers for:
- * - Navigation buttons (cursor movement)
- * - Zoom controls (buttons and mouse wheel)
- * - Signal selection
- */
-function setupEventHandlers() {
-    // Set up navigation button handlers
-    const buttonHandlers = {
-        '⏮ Start': moveCursorToStart,
-        '↓ Prev': findPreviousFallingEdge,
-        '↑ Prev': findPreviousRisingEdge,
-        '◀ Prev': moveToPreviousTransition,
-        'Next ▶': moveToNextTransition,
-        'Next ↑': findNextRisingEdge,
-        'Next ↓': findNextFallingEdge,
-        'End ⏭': moveCursorToEnd
-    };
-
-    document.querySelectorAll('#cursor-controls button').forEach(button => {
-        button.onclick = buttonHandlers[button.textContent];
-    });
-
-    // Set up zoom controls
-    const zoomIn = document.getElementById('zoom-in');
-    const zoomOut = document.getElementById('zoom-out');
-    const zoomFull = document.getElementById('zoom-full');
-    if (zoomIn) zoomIn.onclick = handleZoomIn;
-    if (zoomOut) zoomOut.onclick = handleZoomOut;
-    if (zoomFull) zoomFull.onclick = handleZoomFull;
-
-    // Set up timeline zoom and wheel handlers
-    const timeline = document.getElementById('timeline');
-    if (timeline) {
-        timeline.addEventListener('wheel', handleWheelZoom);
-        initializeZoomHandlers(timeline);
-    }
-
-    // Set up select/deselect all buttons
-    const selectAll = document.getElementById('select-all');
-    const deselectAll = document.getElementById('deselect-all');
-    
-    if (selectAll) {
-        selectAll.onclick = () => {
-            const signalTree = document.getElementById('signal-tree');
-            if (signalTree?.hierarchyRoot) {
-                toggleNodeSelection(signalTree.hierarchyRoot, true);
-            }
-        };
-    }
-    
-    if (deselectAll) {
-        deselectAll.onclick = () => {
-            const signalTree = document.getElementById('signal-tree');
-            if (signalTree?.hierarchyRoot) {
-                toggleNodeSelection(signalTree.hierarchyRoot, false);
-            }
-        };
-    }
-}
 
 /**
  * Manages virtual scrolling of signal rows
@@ -364,10 +105,10 @@ const virtualScroll = {
     getRow(signal) {
         const cacheKey = signal.name;
         if (!this.rowCache.has(cacheKey)) {
-            const row = createSignalRow(signal);
+            const row = new SignalRow(signal);
             this.rowCache.set(cacheKey, row);
         }
-        return this.rowCache.get(cacheKey);
+        return this.rowCache.get(cacheKey).render();
     },
     
     /**
@@ -594,6 +335,68 @@ function initializeTimeline() {
     initializeZoomHandlers(timelineCanvas);
     
     // ... rest of timeline initialization ...
+}
+
+/**
+ * Sets up event handlers for all interactive elements.
+ * Binds handlers for:
+ * - Navigation buttons (cursor movement)
+ * - Zoom controls (buttons and mouse wheel)
+ * - Signal selection
+ */
+function setupEventHandlers() {
+    // Set up navigation button handlers
+    const buttonHandlers = {
+        '⏮ Start': moveCursorToStart,
+        '↓ Prev': findPreviousFallingEdge,
+        '↑ Prev': findPreviousRisingEdge,
+        '◀ Prev': moveToPreviousTransition,
+        'Next ▶': moveToNextTransition,
+        'Next ↑': findNextRisingEdge,
+        'Next ↓': findNextFallingEdge,
+        'End ⏭': moveCursorToEnd
+    };
+
+    document.querySelectorAll('#cursor-controls button').forEach(button => {
+        button.onclick = buttonHandlers[button.textContent];
+    });
+
+    // Set up zoom controls
+    const zoomIn = document.getElementById('zoom-in');
+    const zoomOut = document.getElementById('zoom-out');
+    const zoomFull = document.getElementById('zoom-full');
+    if (zoomIn) zoomIn.onclick = handleZoomIn;
+    if (zoomOut) zoomOut.onclick = handleZoomOut;
+    if (zoomFull) zoomFull.onclick = handleZoomFull;
+
+    // Set up timeline zoom and wheel handlers
+    const timeline = document.getElementById('timeline');
+    if (timeline) {
+        timeline.addEventListener('wheel', handleWheelZoom);
+        initializeZoomHandlers(timeline);
+    }
+
+    // Set up select/deselect all buttons
+    const selectAll = document.getElementById('select-all');
+    const deselectAll = document.getElementById('deselect-all');
+    
+    if (selectAll) {
+        selectAll.onclick = () => {
+            const signalTree = document.getElementById('signal-tree');
+            if (signalTree?.hierarchyRoot) {
+                toggleNodeSelection(signalTree.hierarchyRoot, true);
+            }
+        };
+    }
+    
+    if (deselectAll) {
+        deselectAll.onclick = () => {
+            const signalTree = document.getElementById('signal-tree');
+            if (signalTree?.hierarchyRoot) {
+                toggleNodeSelection(signalTree.hierarchyRoot, false);
+            }
+        };
+    }
 }
 
 // Initialize application when DOM is ready
