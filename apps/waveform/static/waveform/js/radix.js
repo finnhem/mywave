@@ -93,14 +93,65 @@ export function formatSignalValue(value, signalName, forceFormat = false) {
     let formattedValue;
     let binaryValue;
     
+    // Determine the bit width from the signal name if available
+    let bitWidth = null;
+    if (signalName) {
+        // First try to get bit width from signal metadata if available
+        const canvas = document.querySelector(`canvas[data-signal-name="${signalName}"]`);
+        if (canvas && canvas.signalData && canvas.signalData.width) {
+            bitWidth = canvas.signalData.width;
+        } else {
+            // Try to extract bit width from signal name patterns
+            const patterns = [
+                /\[(\d+):0\]$/,      // matches "signal[7:0]"
+                /\[(\d+)\]$/,        // matches "signal[8]"
+                /(\d+)bit/i,         // matches "signal8bit" or "8bitSignal"
+                /signal(\d+)/        // matches "signal8"
+            ];
+            
+            for (const pattern of patterns) {
+                const match = signalName.match(pattern);
+                if (match && match[1]) {
+                    bitWidth = parseInt(match[1], 10) + 1;
+                    break;
+                }
+            }
+            
+            // If still no bit width, try to infer from the value
+            if (!bitWidth) {
+                if (value.startsWith('0x')) {
+                    // Each hex digit represents 4 bits
+                    bitWidth = (value.length - 2) * 4;
+                } else if (value.startsWith('b')) {
+                    // Binary value length minus 'b' prefix
+                    bitWidth = value.length - 1;
+                } else if (/^[01]+$/.test(value)) {
+                    // Raw binary string length
+                    bitWidth = value.length;
+                }
+            }
+        }
+    }
+    
     // First, convert to binary if not already in binary
     if (value.startsWith('0x')) {
-        binaryValue = hexToBin(value.substring(2));
+        binaryValue = hexToBin(value.substring(2), bitWidth);
         binaryValue = binaryValue.startsWith('b') ? binaryValue : 'b' + binaryValue;
     } else if (value.startsWith('b')) {
-        binaryValue = value;
+        // If it's already binary but needs padding
+        const binStr = value.slice(1);
+        if (bitWidth && binStr.length < bitWidth) {
+            binaryValue = 'b' + binStr.padStart(bitWidth, '0');
+        } else {
+            binaryValue = value;
+        }
     } else if (/^[01]+$/.test(value)) {
-        binaryValue = 'b' + value;
+        // Raw binary string that needs padding
+        if (bitWidth && value.length < bitWidth) {
+            binaryValue = 'b' + value.padStart(bitWidth, '0');
+        } else {
+            binaryValue = 'b' + value;
+        }
     } else {
         // Unrecognized format, return as is
         return value;

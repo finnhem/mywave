@@ -86,17 +86,15 @@ export function binToHex(value) {
 
 /**
  * Converts a hexadecimal string to binary.
- * Handles special values (x, z).
+ * Handles special values (x, z) and maintains full bit width.
  * @param {string} value - Hex value to convert
+ * @param {number} [bitWidth] - Optional bit width for proper padding
  * @returns {string} Binary representation with 'b' prefix
  */
-export function hexToBin(value) {
+export function hexToBin(value, bitWidth) {
     // Handle special values
     if (value === 'x' || value === 'X') return 'x';
     if (value === 'z' || value === 'Z') return 'z';
-    
-    // Handle single digit values
-    if (value === '0' || value === '1') return value;
     
     // Convert each hex digit to 4 bits
     let binary = '';
@@ -105,8 +103,10 @@ export function hexToBin(value) {
         binary += bits;
     }
     
-    // Remove leading zeros (but keep at least one digit)
-    binary = binary.replace(/^0+(?=\d)/, '');
+    // Always pad to the specified bit width if provided
+    if (bitWidth) {
+        binary = binary.padStart(bitWidth, '0');
+    }
     
     return 'b' + binary;
 } 

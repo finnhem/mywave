@@ -136,11 +136,18 @@ function createSignalRow(signal) {
 function createValueCell(signalName, signalData, time) {
     // Create value cell
     const valueCell = document.createElement('div');
-    valueCell.classList.add('value-display', 'flex', 'items-center', 'justify-end', 'min-w-[80px]', 'pr-2', 'pl-2');
+    valueCell.classList.add(
+        'value-display',
+        'flex',
+        'items-center',
+        'w-[120px]',  // Fixed width for consistent alignment
+        'pr-2',
+        'pl-2'
+    );
     
     // Create span for text content
     const textSpan = document.createElement('span');
-    textSpan.className = 'font-mono text-sm';
+    textSpan.className = 'font-mono text-sm w-full text-right tabular-nums';
     valueCell.appendChild(textSpan);
     
     // If signal data is available, update text content
