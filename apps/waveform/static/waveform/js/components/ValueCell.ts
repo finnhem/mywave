@@ -3,16 +3,19 @@
  * @module components/ValueCell
  */
 
-import { BaseCell } from './BaseCell.js';
-import { getSignalValueAtTime } from '../utils.js';
-import { formatSignalValue } from '../radix.js';
+import { BaseCell } from './BaseCell';
+import { getSignalValueAtTime } from '../utils';
+import { formatSignalValue } from '../radix';
+import { Signal } from '../types';
 
 export class ValueCell extends BaseCell {
+    private textSpan!: HTMLSpanElement;
+
     /**
      * Creates the DOM element for the value cell
      * @returns {HTMLElement}
      */
-    createElement() {
+    createElement(): HTMLElement {
         const cell = document.createElement('div');
         cell.className = 'value-display flex items-center w-[120px] pr-2 pl-2';
         
@@ -32,7 +35,7 @@ export class ValueCell extends BaseCell {
      * Updates the displayed value based on current time
      * @param {number} time - Current cursor time
      */
-    update(time) {
+    update(time: number): void {
         if (this.signal.data && this.signal.data.length > 0) {
             const value = getSignalValueAtTime(this.signal.data, time);
             this.textSpan.textContent = formatSignalValue(value, this.signal.name);

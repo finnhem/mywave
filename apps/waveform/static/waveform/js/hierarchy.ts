@@ -6,11 +6,23 @@
  * @module hierarchy
  */
 
+import type { Signal } from './types';
+
 /**
  * Represents a node in the signal hierarchy tree
  */
 class HierarchyNode {
-    constructor(name, isSignal = false) {
+    name: string;
+    isSignal: boolean;
+    children: Map<string, HierarchyNode>;
+    parent: HierarchyNode | null;
+    expanded: boolean;
+    selected: boolean;
+    element: HTMLElement | null;
+    signalData: Signal | null;
+    fullPath: string;
+
+    constructor(name: string, isSignal = false) {
         this.name = name;
         this.isSignal = isSignal;
         this.children = new Map();
@@ -25,10 +37,10 @@ class HierarchyNode {
 
 /**
  * Builds a hierarchy tree from a flat list of signals
- * @param {Array} signals - Array of signal objects with name and data
+ * @param {Signal[]} signals - Array of signal objects with name and data
  * @returns {HierarchyNode} Root node of the hierarchy tree
  */
-function buildHierarchy(signals) {
+function buildHierarchy(signals: Signal[]): HierarchyNode {
     const root = new HierarchyNode('root');
     root.fullPath = 'root';
     
@@ -46,7 +58,7 @@ function buildHierarchy(signals) {
                 groupNode.fullPath = 'root.' + groupName;
                 currentNode.children.set(groupName, groupNode);
             }
-            currentNode = currentNode.children.get(groupName);
+            currentNode = currentNode.children.get(groupName)!;
             currentPath = currentNode.fullPath;
         }
         
@@ -65,7 +77,7 @@ function buildHierarchy(signals) {
                 }
                 currentNode.children.set(part, newNode);
             }
-            currentNode = currentNode.children.get(part);
+            currentNode = currentNode.children.get(part)!;
         }
     });
     
@@ -78,7 +90,7 @@ function buildHierarchy(signals) {
  * @param {number} level - Current depth in the tree
  * @returns {HTMLElement} The created tree item element
  */
-function createTreeElement(node, level = 0) {
+function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
     const item = document.createElement('div');
     item.className = 'tree-item';
     item.style.paddingLeft = `${level * 20}px`;
@@ -91,12 +103,12 @@ function createTreeElement(node, level = 0) {
         const expander = document.createElement('span');
         expander.className = 'expander';
         expander.textContent = node.expanded ? '▼' : '▶';
-        expander.onclick = (e) => {
+        expander.onclick = (e: MouseEvent) => {
             e.stopPropagation();
             node.expanded = !node.expanded;
             expander.textContent = node.expanded ? '▼' : '▶';
             Array.from(item.children).slice(1).forEach(child => {
-                child.style.display = node.expanded ? '' : 'none';
+                (child as HTMLElement).style.display = node.expanded ? '' : 'none';
             });
         };
         header.appendChild(expander);
@@ -106,7 +118,7 @@ function createTreeElement(node, level = 0) {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.checked = node.selected;
-    checkbox.onclick = (e) => {
+    checkbox.onclick = (e: MouseEvent) => {
         e.stopPropagation();
         toggleNodeSelection(node, checkbox.checked);
     };
@@ -138,10 +150,10 @@ function createTreeElement(node, level = 0) {
  * @param {boolean} [selected] - Force specific selection state
  * @param {boolean} [skipUpdate=false] - Skip display update
  */
-function toggleNodeSelection(node, selected = !node.selected, skipUpdate = false) {
+function toggleNodeSelection(node: HierarchyNode, selected = !node.selected, skipUpdate = false): void {
     // Update node selection immediately
     node.selected = selected;
-    const checkbox = node.element.querySelector('input[type="checkbox"]');
+    const checkbox = node.element?.querySelector('input[type="checkbox"]') as HTMLInputElement;
     checkbox.checked = selected;
     checkbox.indeterminate = false;
     
@@ -176,7 +188,7 @@ function toggleNodeSelection(node, selected = !node.selected, skipUpdate = false
  * A parent is selected only if all children are selected.
  * @param {HierarchyNode} node - Node to update parent for
  */
-function updateParentSelection(node) {
+function updateParentSelection(node: HierarchyNode): void {
     let parent = node.parent;
     while (parent) {
         const children = Array.from(parent.children.values());
@@ -184,7 +196,7 @@ function updateParentSelection(node) {
         const someSelected = children.some(child => child.selected);
         
         parent.selected = allSelected;
-        const checkbox = parent.element.querySelector('input[type="checkbox"]');
+        const checkbox = parent.element?.querySelector('input[type="checkbox"]') as HTMLInputElement;
         checkbox.checked = allSelected;
         checkbox.indeterminate = !allSelected && someSelected;
         
@@ -193,6 +205,7 @@ function updateParentSelection(node) {
 }
 
 export {
+    HierarchyNode,
     buildHierarchy,
     createTreeElement,
     toggleNodeSelection,

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "strict": true,
+    "sourceMap": true,
+    "outDir": "./apps/waveform/static/waveform/js/dist",
+    "rootDir": "./apps/waveform/static/waveform/js",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "checkJs": true,
+    "noImplicitAny": false,
+    "lib": ["DOM", "ES2023"]
+  },
+  "include": [
+    "apps/waveform/static/waveform/js/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "apps/waveform/static/waveform/js/dist"
+  ]
+} 

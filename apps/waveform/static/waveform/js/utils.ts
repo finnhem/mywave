@@ -6,13 +6,15 @@
  * @module utils
  */
 
+import { TimePoint } from './types';
+
 /**
  * Gets the value of a signal at a specific time point.
- * @param {Array} data - Array of signal data points
+ * @param {TimePoint[]} data - Array of signal data points
  * @param {number} time - Time point to get value for
  * @returns {string} The signal value at the given time
  */
-export function getSignalValueAtTime(data, time) {
+export function getSignalValueAtTime(data: TimePoint[], time: number): string {
     if (!data || data.length === 0) return 'no data';
     
     // Find the last value before or at the given time
@@ -31,7 +33,7 @@ export function getSignalValueAtTime(data, time) {
  * @param {number} timeInNs - Time value in nanoseconds
  * @returns {string} Formatted time value with appropriate unit
  */
-export function formatTime(timeInNs) {
+export function formatTime(timeInNs: number): string {
     if (typeof timeInNs !== 'number' || isNaN(timeInNs)) return '0.0ns';
     
     // Choose appropriate unit based on magnitude
@@ -58,7 +60,7 @@ export function formatTime(timeInNs) {
  * @param {string} value - Binary value to convert
  * @returns {string} Hexadecimal representation
  */
-export function binToHex(value) {
+export function binToHex(value: string): string {
     // Handle special values
     if (value === 'x' || value === 'X') return 'x';
     if (value === 'z' || value === 'Z') return 'z';
@@ -91,7 +93,7 @@ export function binToHex(value) {
  * @param {number} [bitWidth] - Optional bit width for proper padding
  * @returns {string} Binary representation with 'b' prefix
  */
-export function hexToBin(value, bitWidth) {
+export function hexToBin(value: string, bitWidth?: number): string {
     // Handle special values
     if (value === 'x' || value === 'X') return 'x';
     if (value === 'z' || value === 'Z') return 'z';
@@ -109,4 +111,65 @@ export function hexToBin(value, bitWidth) {
     }
     
     return 'b' + binary;
+}
+
+/**
+ * Finds the nearest data point to a given time
+ * @param data - Array of time points
+ * @param time - Target time value
+ * @returns Nearest data point or null if data is empty
+ */
+export function findNearestPoint(data: TimePoint[], time: number): TimePoint | null {
+    if (!data || data.length === 0) return null;
+
+    let left = 0;
+    let right = data.length - 1;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const midTime = data[mid].time;
+
+        if (midTime === time) {
+            return data[mid];
+        }
+
+        if (midTime < time) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    // At this point, right points to the largest value <= time
+    // and left points to the smallest value > time
+    if (right < 0) return data[0];
+    if (left >= data.length) return data[data.length - 1];
+
+    const leftDiff = Math.abs(time - data[right].time);
+    const rightDiff = Math.abs(data[left].time - time);
+
+    return leftDiff <= rightDiff ? data[right] : data[left];
+}
+
+/**
+ * Debounces a function call
+ * @param func - Function to debounce
+ * @param wait - Wait time in milliseconds
+ * @returns Debounced function
+ */
+export function debounce<T extends (...args: any[]) => void>(
+    func: T,
+    wait: number
+): (...args: Parameters<T>) => void {
+    let timeout: number | undefined;
+
+    return function(this: any, ...args: Parameters<T>): void {
+        const later = () => {
+            timeout = undefined;
+            func.apply(this, args);
+        };
+
+        if (timeout !== undefined) window.clearTimeout(timeout);
+        timeout = window.setTimeout(later, wait);
+    };
 } 

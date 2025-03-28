@@ -9,30 +9,29 @@
  * @module waveform
  */
 
-import { cursor } from './cursor.js';
-import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas.js';
-import { formatTime } from './utils.js';
-import { viewport } from './viewport.js';
-import { formatSignalValue } from './radix.js';
+import { cursor } from './cursor';
+import { updateCanvasResolution, timeToCanvasX, drawCursor, clearCanvas } from './canvas';
+import { formatTime } from './utils';
+import { viewport } from './viewport';
+import { formatSignalValue } from './radix';
+import type { Signal, TimePoint } from './types';
 
 /**
  * Enum for waveform rendering styles.
  * @readonly
- * @enum {string}
  */
-export const WaveformStyle = {
-    LOGIC: 'logic',  // Single-bit digital signals
-    DATA: 'data'     // Multi-bit bus signals
-};
+export enum WaveformStyle {
+    LOGIC = 'logic',  // Single-bit digital signals
+    DATA = 'data'     // Multi-bit bus signals
+}
 
 /**
  * Determines the appropriate waveform style based on signal properties.
- * @param {Object} signal - Signal object containing metadata
- * @param {number} [signal.width] - Bit width of the signal (optional)
- * @param {Array<Object>} data - Signal data points to infer width from if not provided
+ * @param {Signal} signal - Signal object containing metadata
+ * @param {TimePoint[]} data - Signal data points to infer width from if not provided
  * @returns {WaveformStyle} The selected rendering style
  */
-export function selectWaveformStyle(signal, data) {
+export function selectWaveformStyle(signal: Signal | null, data: TimePoint[]): WaveformStyle {
     // If width is explicitly provided, use it
     if (signal && signal.width !== undefined) {
         return signal.width === 1 ? WaveformStyle.LOGIC : WaveformStyle.DATA;
@@ -59,10 +58,10 @@ export function selectWaveformStyle(signal, data) {
  * @param {number} newLevel - New zoom level to set
  * @param {number} [centerTime] - Optional time value to center the view on
  */
-export function setZoom(newLevel, centerTime) {
+export function setZoom(newLevel: number, centerTime?: number): void {
     if (viewport.setZoom(newLevel, centerTime)) {
         // Only redraw if zoom actually changed
-        document.querySelectorAll('canvas').forEach(canvas => {
+        document.querySelectorAll<HTMLCanvasElement>('canvas').forEach(canvas => {
             clearAndRedraw(canvas);
         });
     }
@@ -72,7 +71,7 @@ export function setZoom(newLevel, centerTime) {
  * Clears and redraws a canvas with updated content.
  * @param {HTMLCanvasElement} canvas - Canvas to redraw
  */
-export function clearAndRedraw(canvas) {
+export function clearAndRedraw(canvas: HTMLCanvasElement): void {
     if (canvas.id === 'timeline') {
         drawTimeline(canvas);
     } else {
@@ -90,7 +89,7 @@ export function clearAndRedraw(canvas) {
  * @param {number} height - Canvas height in pixels
  * @returns {number} Y coordinate in canvas space
  */
-function getYForValue(value, height) {
+function getYForValue(value: string, height: number): number {
     const padding = 10;
     if (value === '1' || value === 'b1') {
         return padding;
@@ -103,11 +102,11 @@ function getYForValue(value, height) {
 /**
  * Draws a waveform on the canvas using the appropriate style.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
- * @param {Array<Object>} data - Signal data points
- * @param {Object} [signal] - Signal metadata (optional)
+ * @param {TimePoint[]} data - Signal data points
+ * @param {Signal} [signal] - Signal metadata (optional)
  */
-export function drawWaveform(canvas, data, signal = {}) {
-    const style = selectWaveformStyle(signal, data);
+export function drawWaveform(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Signal): void {
+    const style = selectWaveformStyle(signal || null, data);
     
     if (style === WaveformStyle.LOGIC) {
         drawLogicWave(canvas, data);
@@ -119,10 +118,10 @@ export function drawWaveform(canvas, data, signal = {}) {
 /**
  * Draws a single-bit logic waveform.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
- * @param {Array<Object>} data - Signal data points
+ * @param {TimePoint[]} data - Signal data points
  * @private
  */
-function drawLogicWave(canvas, data) {
+function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
     const { ctx, width, height } = updateCanvasResolution(canvas);
     
     if (!data || data.length === 0) return;
@@ -138,8 +137,8 @@ function drawLogicWave(canvas, data) {
     ctx.beginPath();
     
     // Find initial state
-    let lastX = null;
-    let lastY = null;
+    let lastX: number | null = null;
+    let lastY: number | null = null;
     
     // Find the last point before visible range
     const initialPoint = data.findLast(point => point.time <= visibleRange.start);
@@ -163,7 +162,7 @@ function drawLogicWave(canvas, data) {
             ctx.moveTo(x, y);
         } else if (y !== lastY) {
             // Draw vertical transition
-            ctx.lineTo(x, lastY);
+            ctx.lineTo(x, lastY!);
             ctx.lineTo(x, y);
         } else {
             // Continue horizontal line
@@ -191,11 +190,11 @@ function drawLogicWave(canvas, data) {
 /**
  * Draws a multi-bit data waveform with trapezoidal transitions.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
- * @param {Array<Object>} data - Signal data points
- * @param {Object} signal - Signal metadata
+ * @param {TimePoint[]} data - Signal data points
+ * @param {Signal} [signal] - Signal metadata
  * @private
  */
-function drawDataWave(canvas, data, signal) {
+function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Signal): void {
     const { ctx, width, height } = updateCanvasResolution(canvas);
     
     if (!data || data.length === 0) return;
@@ -205,7 +204,7 @@ function drawDataWave(canvas, data, signal) {
     clearCanvas(ctx, canvas.width, canvas.height);
     
     ctx.save();
-    ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+    ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : '#666666';
     ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
     ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
     
@@ -228,7 +227,7 @@ function drawDataWave(canvas, data, signal) {
     }
     
     // Get the radix preference for this signal
-    const signalName = canvas.signalName;
+    const signalName = canvas.signalName || '';
     
     for (let i = 0; i < visibleData.length - 1; i++) {
         const current = visibleData[i];
@@ -246,20 +245,10 @@ function drawDataWave(canvas, data, signal) {
         const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
         
         // Get raw value and handle special cases (X, Z)
-        let rawValue = typeof current.value === 'string' ? current.value : 
-                     '0x' + current.value.toString(16).toUpperCase().padStart(Math.ceil(signal.width/4), '0');
-                     
-        // Special case handling for X and Z values
+        const rawValue = current.value;
         const isSpecialValue = rawValue === 'X' || rawValue === 'x' || rawValue === 'Z' || rawValue === 'z';
         
-        // Format value based on signal preference - only if not a special value
-        let displayValue = rawValue;
-        if (!isSpecialValue && window.formatSignalValue && signalName) {
-            // Use formatting with forceFormat=true to ensure the correct radix is displayed
-            displayValue = window.formatSignalValue(rawValue, signalName, true);
-        }
-        
-        // Set fill style based on value and selection state
+        // Set fill and stroke styles based on value type
         if (rawValue === 'X' || rawValue === 'x') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
@@ -268,7 +257,7 @@ function drawDataWave(canvas, data, signal) {
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
         } else {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
-            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : '#666666';
         }
         
         // Draw trapezoid
@@ -278,20 +267,25 @@ function drawDataWave(canvas, data, signal) {
         ctx.lineTo(x2 - slope, y);
         ctx.lineTo(x2, y + h);
         ctx.closePath();
-        
-        // Fill and stroke in correct order
         ctx.fill();
         ctx.stroke();
         
-        // Draw value text with bold style for X and Z
-        if (rawValue === 'X' || rawValue === 'x') {
-            ctx.fillStyle = canvas.classList.contains('selected') ? '#B91C1C' : '#DC2626'; // Tailwind red-700/600
-            ctx.font = 'bold 12px monospace';
-        } else if (rawValue === 'Z' || rawValue === 'z') {
-            ctx.fillStyle = canvas.classList.contains('selected') ? '#1D4ED8' : '#2563EB'; // Tailwind blue-700/600
+        // Format value for display
+        const displayValue = isSpecialValue ? rawValue : formatSignalValue(rawValue, signalName);
+        
+        // Calculate visible width of the segment
+        const visibleX1 = Math.max(0, x1);
+        const visibleX2 = Math.min(width, x2);
+        const visibleWidth = visibleX2 - visibleX1;
+        
+        // Set text style based on value type
+        if (isSpecialValue) {
+            ctx.fillStyle = rawValue.toLowerCase() === 'x' ? 
+                (canvas.classList.contains('selected') ? '#B91C1C' : '#DC2626') : // Red for X
+                (canvas.classList.contains('selected') ? '#1D4ED8' : '#2563EB');  // Blue for Z
             ctx.font = 'bold 12px monospace';
         } else {
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = '#333333';
             ctx.font = '12px monospace';
         }
         
@@ -300,16 +294,17 @@ function drawDataWave(canvas, data, signal) {
         const textX = x1 + (x2 - x1) / 2;
         const textY = y + h / 2;
         
-        // Calculate visible width of the segment
-        const visibleX1 = Math.max(0, x1);
-        const visibleX2 = Math.min(width, x2);
-        const visibleWidth = visibleX2 - visibleX1;
-        
         // Measure text width
         const textWidth = ctx.measureText(displayValue).width;
+        const minSegmentWidth = Math.max(40, textWidth + 20); // Minimum width needed to display text
         
-        // Only draw text if there's enough visible space and the text would fit with padding
-        if (visibleWidth > Math.max(40, textWidth + 20) && textX >= 0 && textX <= width) {
+        // Only draw text if:
+        // 1. The segment is wide enough to fit the text with padding
+        // 2. The text center point is within the canvas
+        // 3. The segment is fully visible (no partial text)
+        if (visibleWidth >= minSegmentWidth && 
+            textX >= 0 && textX <= width &&
+            x1 >= -1 && x2 <= width + 1) {
             ctx.fillText(displayValue, textX, textY);
         }
     }
@@ -326,7 +321,7 @@ function drawDataWave(canvas, data, signal) {
  * Draws the timeline with time markers and cursor.
  * @param {HTMLCanvasElement} canvas - Canvas to draw on
  */
-export function drawTimeline(canvas) {
+export function drawTimeline(canvas: HTMLCanvasElement): void {
     const { ctx, width, height } = updateCanvasResolution(canvas);
     clearCanvas(ctx, canvas.width, canvas.height);
     
@@ -366,4 +361,4 @@ export function drawTimeline(canvas) {
     if (cursor.currentTime !== undefined) {
         drawCursor(ctx, cursor.currentTime, visibleRange.start, visibleRange.end, width, height, canvas);
     }
-}
+} 

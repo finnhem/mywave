@@ -1,13 +1,29 @@
 /**
  * Virtual scrolling module for efficiently rendering large lists of signals
- * @module virtualScroll
  */
 
-import { SignalRow } from './components/SignalRow.js';
-import { cursor } from './cursor.js';
-import { clearAndRedraw } from './waveform.js';
+import { SignalRow } from './components/SignalRow';
+import { cursor } from './cursor';
+import { clearAndRedraw } from './waveform';
+import type { Signal, HierarchyNode } from './types';
+
+interface SignalNode extends Omit<HierarchyNode, 'children'> {
+    isSignal?: boolean;
+    selected?: boolean;
+    signalData?: Signal;
+    children: Map<string, SignalNode> | HierarchyNode[];
+}
 
 class VirtualScroll {
+    private rowHeight: number;
+    private bufferSize: number;
+    private container: HTMLElement | null;
+    private content: HTMLElement | null;
+    private totalRows: number;
+    private signals: Signal[];
+    private rowCache: Map<string, SignalRow>;
+    private visibleRows: Set<string>;
+
     constructor() {
         this.rowHeight = 40; // Height of each row in pixels
         this.bufferSize = 5; // Number of rows to render above and below viewport
@@ -21,9 +37,8 @@ class VirtualScroll {
 
     /**
      * Processes and displays selected signals from the signal tree
-     * @param {Object} hierarchyRoot - Root node of the signal hierarchy
      */
-    displaySelectedSignals(hierarchyRoot) {
+    displaySelectedSignals(hierarchyRoot: SignalNode): void {
         if (!hierarchyRoot) return;
 
         // Get selected signals from hierarchy
@@ -38,17 +53,23 @@ class VirtualScroll {
 
     /**
      * Collects all selected signals from the hierarchy
-     * @param {Object} node - Current node in the hierarchy
-     * @returns {Array} Array of selected signal data
      * @private
      */
-    collectSelectedSignals(node) {
-        let signals = [];
-        if (node.isSignal && node.selected) {
+    private collectSelectedSignals(node: SignalNode): Signal[] {
+        let signals: Signal[] = [];
+        if (node.isSignal && node.selected && node.signalData) {
             signals.push(node.signalData);
         }
-        for (const child of node.children.values()) {
-            signals = signals.concat(this.collectSelectedSignals(child));
+        // Handle children as a Map
+        if (node.children instanceof Map) {
+            for (const child of node.children.values()) {
+                signals = signals.concat(this.collectSelectedSignals(child as SignalNode));
+            }
+        } else if (Array.isArray(node.children)) {
+            // Fallback for array children
+            for (const child of node.children) {
+                signals = signals.concat(this.collectSelectedSignals(child as SignalNode));
+            }
         }
         return signals;
     }
@@ -57,13 +78,13 @@ class VirtualScroll {
      * Updates all canvases to reflect current state and registers them with cursor
      * @private
      */
-    updateCanvases() {
+    private updateCanvases(): void {
         // Reset cursor canvases to start fresh
-        const timeline = document.getElementById('timeline');
+        const timeline = document.getElementById('timeline') as HTMLCanvasElement | null;
         cursor.canvases = timeline ? [timeline] : [];
 
         // Update signal canvases and register with cursor
-        const visibleCanvases = document.querySelectorAll('.waveform-canvas-container canvas');
+        const visibleCanvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas-container canvas');
         visibleCanvases.forEach(canvas => {
             if (canvas.id !== 'timeline') {
                 // Register canvas with cursor
@@ -83,17 +104,15 @@ class VirtualScroll {
         }
 
         // Update all visible signal values
-        if (cursor.currentTime !== null) {
+        if (cursor.currentTime !== undefined) {
             this.updateAllValues(cursor.currentTime);
         }
     }
 
     /**
      * Initializes virtual scrolling
-     * @param {Array<Object>} signals - Array of all signals
-     * @param {boolean} [forceRecreate=false] - Whether to force recreation of all rows
      */
-    initialize(signals, forceRecreate = false) {
+    initialize(signals: Signal[], forceRecreate = false): void {
         const isFirstInit = !this.container;
         
         // Always clear cache when signals list changes
@@ -113,6 +132,8 @@ class VirtualScroll {
         
         if (isFirstInit) {
             this.container = document.getElementById('waveform-rows-container');
+            if (!this.container) return;
+
             this.content = document.createElement('div');
             this.content.style.position = 'relative';
             this.container.innerHTML = '';
@@ -121,7 +142,9 @@ class VirtualScroll {
         }
         
         // Update content height
-        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        if (this.content) {
+            this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        }
         
         // Initial render
         this.updateVisibleRows();
@@ -129,22 +152,20 @@ class VirtualScroll {
     
     /**
      * Gets or creates a SignalRow instance for a signal
-     * @param {Object} signal - Signal data
-     * @returns {HTMLElement} Rendered row element
      */
-    getRow(signal) {
+    private getRow(signal: Signal): HTMLElement {
         const cacheKey = signal.name;
         if (!this.rowCache.has(cacheKey)) {
             const signalRow = new SignalRow(signal);
             this.rowCache.set(cacheKey, signalRow);
         }
-        return this.rowCache.get(cacheKey).render();
+        return this.rowCache.get(cacheKey)!.render();
     }
     
     /**
      * Handles scroll events
      */
-    onScroll() {
+    private onScroll(): void {
         requestAnimationFrame(() => {
             this.updateVisibleRows();
             // After updating visible rows, ensure cursor canvases are up to date
@@ -155,7 +176,9 @@ class VirtualScroll {
     /**
      * Updates which rows are currently rendered based on scroll position
      */
-    updateVisibleRows() {
+    private updateVisibleRows(): void {
+        if (!this.container || !this.content) return;
+
         const scrollTop = this.container.scrollTop;
         const viewportHeight = this.container.clientHeight;
         
@@ -190,33 +213,33 @@ class VirtualScroll {
     
     /**
      * Updates the total number of rows and refreshes the display
-     * @param {number} newTotal - New total number of rows
      */
-    updateTotalRows(newTotal) {
+    updateTotalRows(newTotal: number): void {
         this.totalRows = newTotal;
-        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        if (this.content) {
+            this.content.style.height = `${this.totalRows * this.rowHeight}px`;
+        }
         this.updateVisibleRows();
         this.updateCanvases();
     }
 
     /**
-     * Updates all visible signal values
-     * @param {number} time - Current cursor time
+     * Updates all visible signal values at the given time
      */
-    updateAllValues(time) {
-        for (const signalName of this.visibleRows) {
+    private updateAllValues(time: number): void {
+        this.visibleRows.forEach(signalName => {
             const row = this.rowCache.get(signalName);
             if (row) {
-                row.update(time);
+                row.updateValue(time);
             }
-        }
+        });
     }
 
     /**
-     * Cleans up resources and cached rows
+     * Cleans up resources
      */
-    destroy() {
-        // Clean up cached SignalRow instances
+    destroy(): void {
+        // Clean up row instances
         for (const row of this.rowCache.values()) {
             row.destroy();
         }

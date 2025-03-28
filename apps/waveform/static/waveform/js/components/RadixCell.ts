@@ -3,20 +3,32 @@
  * @module components/RadixCell
  */
 
-import { BaseCell } from './BaseCell.js';
-import { signalPreferences, updateSignalRadix } from '../radix.js';
+import { BaseCell } from './BaseCell';
+import { signalPreferences, updateSignalRadix } from '../radix';
+import type { Signal } from '../types';
+
+type RadixType = 'bin' | 'hex' | 'sdec' | 'udec';
+
+interface RadixTooltips {
+    [key: string]: string;
+}
+
+interface RadixStyles {
+    [key: string]: string;
+}
 
 export class RadixCell extends BaseCell {
+    private radixDisplay: HTMLDivElement = document.createElement('div');
+    
     /**
      * Creates the DOM element for the radix cell
      * @returns {HTMLElement}
      */
-    createElement() {
+    createElement(): HTMLElement {
         const cell = document.createElement('div');
         cell.className = 'flex justify-center items-center';
         
         // Create radix display element
-        this.radixDisplay = document.createElement('div');
         this.radixDisplay.className = 'text-xs uppercase font-bold cursor-pointer';
         
         // Get initial radix
@@ -35,13 +47,13 @@ export class RadixCell extends BaseCell {
 
     /**
      * Updates the radix display
-     * @param {string} radix - The radix to display (bin, hex, sdec, udec)
+     * @param {RadixType} radix - The radix to display (bin, hex, sdec, udec)
      */
-    updateDisplay(radix) {
+    updateDisplay(radix: RadixType): void {
         this.radixDisplay.textContent = radix.toUpperCase();
         
         // Update tooltip
-        const tooltips = {
+        const tooltips: RadixTooltips = {
             bin: 'Binary - Click to change format',
             hex: 'Hexadecimal - Click to change format',
             sdec: 'Signed Decimal - Click to change format',
@@ -51,7 +63,7 @@ export class RadixCell extends BaseCell {
         
         // Update styling
         this.radixDisplay.classList.remove('text-gray-500', 'text-indigo-600', 'text-green-600', 'text-blue-600');
-        const styles = {
+        const styles: RadixStyles = {
             bin: 'text-gray-500',
             hex: 'text-indigo-600',
             sdec: 'text-green-600',
@@ -63,16 +75,16 @@ export class RadixCell extends BaseCell {
     /**
      * Cycles through available radix options
      */
-    cycleRadix() {
+    cycleRadix(): void {
         const currentRadix = signalPreferences.radix[this.signal.name] || 'bin';
-        const radixCycle = {
+        const radixCycle: { [key in RadixType]: RadixType } = {
             bin: 'hex',
             hex: 'sdec',
             sdec: 'udec',
             udec: 'bin'
         };
         
-        const newRadix = radixCycle[currentRadix];
+        const newRadix = radixCycle[currentRadix as RadixType];
         updateSignalRadix(this.signal.name, newRadix, () => {
             this.updateDisplay(newRadix);
         });

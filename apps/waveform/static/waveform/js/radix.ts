@@ -5,15 +5,25 @@
  * @module radix
  */
 
-import { binToHex, hexToBin } from './utils.js';
+import { binToHex, hexToBin, getSignalValueAtTime } from './utils';
+import { cursor } from './cursor';
+import { clearAndRedraw } from './waveform';
+import { Signal, TimePoint } from './types';
+
+type RadixType = 'bin' | 'hex' | 'sdec' | 'udec';
+
+interface SignalPreferences {
+    radix: { [key: string]: RadixType };
+    cachedValues: { [key: string]: { [key: string]: string } };
+}
 
 /**
  * Store signal display preferences - globally accessible
- * @type {Object}
+ * @type {SignalPreferences}
  * @property {Object} radix - Maps signal name to preferred radix ('bin', 'hex', 'sdec' or 'udec')
  * @property {Object} cachedValues - Cache for formatted values to improve performance
  */
-export const signalPreferences = {
+export const signalPreferences: SignalPreferences = {
     radix: {},  // Maps signal name to preferred radix ('bin', 'hex', 'sdec' or 'udec')
     cachedValues: {}  // Cache for formatted values to improve performance
 };
@@ -23,7 +33,7 @@ export const signalPreferences = {
  * @param {string} value - Binary value (with or without 'b' prefix)
  * @returns {string} Signed decimal representation
  */
-function binToSignedDec(value) {
+function binToSignedDec(value: string): string {
     // Remove 'b' prefix if present
     const binStr = value.startsWith('b') ? value.slice(1) : value;
     
@@ -55,7 +65,7 @@ function binToSignedDec(value) {
  * @param {string} value - Binary value (with or without 'b' prefix)
  * @returns {string} Unsigned decimal representation
  */
-function binToUnsignedDec(value) {
+function binToUnsignedDec(value: string): string {
     // Remove 'b' prefix if present
     const binStr = value.startsWith('b') ? value.slice(1) : value;
     
@@ -70,7 +80,7 @@ function binToUnsignedDec(value) {
  * @param {boolean} [forceFormat=false] - Force reformatting even if cached
  * @returns {string} Formatted value string
  */
-export function formatSignalValue(value, signalName, forceFormat = false) {
+export function formatSignalValue(value: string, signalName: string, forceFormat: boolean = false): string {
     // Special values handling - no formatting needed
     if (value === 'x' || value === 'X' || value === 'z' || value === 'Z') return value;
     if (value === '0' || value === '1') return value;
@@ -90,16 +100,16 @@ export function formatSignalValue(value, signalName, forceFormat = false) {
     }
     
     // Format the value based on radix
-    let formattedValue;
-    let binaryValue;
+    let formattedValue: string;
+    let binaryValue: string;
     
     // Determine the bit width from the signal name if available
-    let bitWidth = null;
+    let bitWidth: number | undefined = undefined;
     if (signalName) {
         // First try to get bit width from signal metadata if available
-        const canvas = document.querySelector(`canvas[data-signal-name="${signalName}"]`);
-        if (canvas && canvas.signalData && canvas.signalData.width) {
-            bitWidth = canvas.signalData.width;
+        const canvas = document.querySelector(`canvas[data-signal-name="${signalName}"]`) as HTMLCanvasElement | null;
+        if (canvas?.signal?.width) {
+            bitWidth = canvas.signal.width;
         } else {
             // Try to extract bit width from signal name patterns
             const patterns = [
@@ -183,53 +193,43 @@ export function formatSignalValue(value, signalName, forceFormat = false) {
  * @param {string} signalName - Name of the signal
  * @returns {string} Current radix preference ('bin', 'hex', 'sdec', or 'udec')
  */
-export function getSignalRadix(signalName) {
+export function getSignalRadix(signalName: string): RadixType {
     return signalPreferences.radix[signalName] || 'bin';
 }
 
 /**
  * Updates radix preference for a signal and triggers UI refresh
  * @param {string} signalName - Name of the signal
- * @param {string} newRadix - New radix value ('bin', 'hex', 'sdec', or 'udec')
+ * @param {RadixType} newRadix - New radix value ('bin', 'hex', 'sdec', or 'udec')
  * @param {Function} [callback] - Optional callback after update
  */
-export function updateSignalRadix(signalName, newRadix, callback) {
+export function updateSignalRadix(signalName: string, newRadix: RadixType, callback?: () => void): void {
     // Update preference
     signalPreferences.radix[signalName] = newRadix;
     
     // Clear cache for this signal to force reformatting
     signalPreferences.cachedValues[signalName] = {};
     
-    // Redraw any affected canvases
-    if (typeof document !== 'undefined') {
-        // Find and redraw all canvases for this signal
-        document.querySelectorAll('.waveform-canvas-container canvas').forEach(canvas => {
-            if (canvas.signalName === signalName && typeof window.clearAndRedraw === 'function') {
-                window.clearAndRedraw(canvas);
+    // Find and update the signal row
+    const signalRow = document.querySelector(`[data-signal-name="${signalName}"]`);
+    if (signalRow) {
+        // Update value cell
+        const valueCell = signalRow.querySelector('.value-display');
+        const canvas = signalRow.querySelector('canvas') as HTMLCanvasElement;
+        if (valueCell && canvas && canvas.signalData) {
+            // Update value display
+            const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
+            const formattedValue = formatSignalValue(value, signalName, true);
+            const valueSpan = valueCell.querySelector('span');
+            if (valueSpan) {
+                valueSpan.textContent = formattedValue;
             }
-        });
-        
-        // Find and update any value displays for this signal
-        document.querySelectorAll('.value-display').forEach(valueCell => {
-            const row = valueCell.closest('.grid');
-            if (row) {
-                const nameCell = row.querySelector('.signal-name-cell');
-                if (nameCell && nameCell.textContent === signalName) {
-                    const span = valueCell.querySelector('span');
-                    if (span && window.cursor && window.cursor.currentTime !== undefined) {
-                        const canvas = row.querySelector('canvas');
-                        if (canvas && canvas.signalData) {
-                            const value = window.getSignalValueAtTime(canvas.signalData, window.cursor.currentTime);
-                            span.textContent = formatSignalValue(value, signalName, true);
-                        }
-                    }
-                }
-            }
-        });
+            
+            // Redraw waveform canvas to update segment values
+            clearAndRedraw(canvas);
+        }
     }
     
-    // Execute callback if provided
-    if (typeof callback === 'function') {
-        callback();
-    }
-} 
+    // Call callback if provided
+    if (callback) callback();
+}

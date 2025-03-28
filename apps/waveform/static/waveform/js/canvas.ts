@@ -7,24 +7,19 @@
  * - Canvas state management
  * - Canvas interaction utilities
  * All canvas operations should use these utilities to ensure consistent behavior.
- * @module canvas
  */
 
-import { clearAndRedraw } from './waveform.js';
-import { viewport } from './viewport.js';
-import { setZoom } from './zoom.js';
-import { cursor } from './cursor.js';
+import { clearAndRedraw } from './waveform';
+import { viewport } from './viewport';
+import { setZoom } from './zoom';
+import { cursor } from './cursor';
+import type { CanvasContext } from './types';
 
 /**
  * Updates canvas internal resolution to match display size and pixel density.
  * Handles high DPI displays by scaling the canvas context appropriately.
- * @param {HTMLCanvasElement} canvas - Canvas to update resolution for
- * @returns {Object} Canvas properties
- * @returns {number} .width - Canvas width in logical pixels
- * @returns {number} .height - Canvas height in logical pixels
- * @returns {CanvasRenderingContext2D} .ctx - Canvas context
  */
-export function updateCanvasResolution(canvas) {
+export function updateCanvasResolution(canvas: HTMLCanvasElement): CanvasContext {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     
@@ -37,6 +32,7 @@ export function updateCanvasResolution(canvas) {
     canvas.height = rect.height * dpr;
     
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
     
     // Scale drawing operations for high DPI displays
     ctx.scale(dpr, dpr);
@@ -47,20 +43,23 @@ export function updateCanvasResolution(canvas) {
     return {
         width: rect.width,
         height: rect.height,
-        ctx: ctx
+        ctx
     };
+}
+
+interface CanvasCoordinates {
+    x: number;
+    y: number;
 }
 
 /**
  * Converts viewport coordinates to canvas coordinates.
- * @param {number} viewportX - X position relative to viewport
- * @param {number} viewportY - Y position relative to viewport
- * @param {HTMLCanvasElement} canvas - Target canvas element
- * @returns {Object} Canvas coordinates
- * @returns {number} .x - X coordinate in canvas space
- * @returns {number} .y - Y coordinate in canvas space
  */
-export function viewportToCanvasCoords(viewportX, viewportY, canvas) {
+export function viewportToCanvasCoords(
+    viewportX: number,
+    viewportY: number,
+    canvas: HTMLCanvasElement
+): CanvasCoordinates {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -74,13 +73,13 @@ export function viewportToCanvasCoords(viewportX, viewportY, canvas) {
 /**
  * Converts a time value to a canvas X coordinate.
  * Maps from the time domain to canvas pixel space.
- * @param {number} time - Time value to convert
- * @param {number} startTime - Start of visible time range
- * @param {number} endTime - End of visible time range
- * @param {number} canvasWidth - Canvas width in pixels
- * @returns {number} X coordinate in canvas space (pixels)
  */
-export function timeToCanvasX(time, startTime, endTime, canvasWidth) {
+export function timeToCanvasX(
+    time: number,
+    startTime: number,
+    endTime: number,
+    canvasWidth: number
+): number {
     const timeRange = endTime - startTime;
     return Math.round(((time - startTime) / timeRange) * canvasWidth);
 }
@@ -88,28 +87,29 @@ export function timeToCanvasX(time, startTime, endTime, canvasWidth) {
 /**
  * Converts a canvas X coordinate to a time value.
  * Maps from canvas pixel space to the time domain.
- * @param {number} x - X coordinate in canvas space (pixels)
- * @param {number} startTime - Start of visible time range
- * @param {number} endTime - End of visible time range
- * @param {number} canvasWidth - Canvas width in pixels
- * @returns {number} Time value corresponding to the X coordinate
  */
-export function canvasXToTime(x, startTime, endTime, canvasWidth) {
+export function canvasXToTime(
+    x: number,
+    startTime: number,
+    endTime: number,
+    canvasWidth: number
+): number {
     const timeRange = endTime - startTime;
     return startTime + (x / canvasWidth) * timeRange;
 }
 
 /**
  * Draws a cursor line on the canvas at the specified time position.
- * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
- * @param {number} time - Time value to draw cursor at
- * @param {number} startTime - Start time of visible range
- * @param {number} endTime - End time of visible range
- * @param {number} width - Canvas width in pixels
- * @param {number} height - Canvas height in pixels
- * @param {HTMLCanvasElement} canvas - Canvas element
  */
-export function drawCursor(ctx, time, startTime, endTime, width, height, canvas) {
+export function drawCursor(
+    ctx: CanvasRenderingContext2D,
+    time: number,
+    startTime: number,
+    endTime: number,
+    width: number,
+    height: number,
+    canvas: HTMLCanvasElement
+): void {
     const x = timeToCanvasX(time, startTime, endTime, width);
     
     // Only draw if cursor is in visible range
@@ -128,22 +128,40 @@ export function drawCursor(ctx, time, startTime, endTime, width, height, canvas)
 /**
  * Clears the entire canvas to a transparent state.
  * Should be called before redrawing canvas contents.
- * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
- * @param {number} width - Canvas width in pixels
- * @param {number} height - Canvas height in pixels
  */
-export function clearCanvas(ctx, width, height) {
+export function clearCanvas(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number
+): void {
     ctx.save();
     ctx.resetTransform();
     ctx.clearRect(0, 0, width, height);
     ctx.restore();
 }
 
+interface DragState {
+    active: boolean;
+    startX: number | null;
+    currentX: number | null;
+    canvas: HTMLCanvasElement | null;
+}
+
+export interface DragUpdate {
+    startX: number;
+    currentX: number;
+}
+
+export interface DragResult {
+    canvas: HTMLCanvasElement;
+    startX: number;
+    endX: number;
+}
+
 /**
  * State object for tracking drag operations on canvas.
- * @type {Object}
  */
-export const dragState = {
+export const dragState: DragState = {
     active: false,
     startX: null,
     currentX: null,
@@ -152,14 +170,15 @@ export const dragState = {
 
 /**
  * Draws a semi-transparent overlay rectangle on the canvas.
- * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
- * @param {number} startX - Starting X coordinate of selection
- * @param {number} endX - Ending X coordinate of selection
- * @param {number} height - Canvas height
- * @param {string} fillStyle - Fill style for the overlay
- * @param {string} strokeStyle - Stroke style for the borders
  */
-export function drawOverlay(ctx, startX, endX, height, fillStyle = 'rgba(0, 102, 204, 0.2)', strokeStyle = 'rgba(0, 102, 204, 0.8)') {
+export function drawOverlay(
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    endX: number,
+    height: number,
+    fillStyle = 'rgba(0, 102, 204, 0.2)',
+    strokeStyle = 'rgba(0, 102, 204, 0.8)'
+): void {
     const left = Math.min(startX, endX);
     const width = Math.abs(endX - startX);
     
@@ -181,15 +200,15 @@ export function drawOverlay(ctx, startX, endX, height, fillStyle = 'rgba(0, 102,
 
 /**
  * Starts a drag operation on the canvas.
- * @param {MouseEvent} event - Mouse event
- * @param {function} shouldStart - Function that determines if drag should start
- * @returns {boolean} Whether the drag operation started
  */
-export function startDrag(event, shouldStart) {
+export function startDrag(
+    event: MouseEvent,
+    shouldStart: (event: MouseEvent) => boolean
+): boolean {
     if (!shouldStart(event)) return false;
     
     event.preventDefault();
-    const canvas = event.target;
+    const canvas = event.target as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     
@@ -202,45 +221,44 @@ export function startDrag(event, shouldStart) {
 }
 
 /**
- * Updates the current drag position.
- * @param {MouseEvent} event - Mouse event
- * @returns {Object|null} Updated coordinates or null if not dragging
+ * Updates the current drag operation.
  */
-export function updateDrag(event) {
-    if (!dragState.active) return null;
+export function updateDrag(event: MouseEvent): DragUpdate | null {
+    if (!dragState.active || !dragState.canvas || dragState.startX === null) return null;
     
     event.preventDefault();
-    const canvas = dragState.canvas;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-    
-    dragState.currentX = x;
+    const rect = dragState.canvas.getBoundingClientRect();
+    dragState.currentX = event.clientX - rect.left;
     
     return {
         startX: dragState.startX,
-        currentX: x,
-        width: rect.width
+        currentX: dragState.currentX
     };
 }
 
 /**
  * Ends the current drag operation.
- * @returns {Object|null} Final drag coordinates or null if no drag was active
  */
-export function endDrag() {
-    if (!dragState.active) return null;
-    
+export function endDrag(): DragResult | null {
+    if (!dragState.active || !dragState.canvas || dragState.startX === null || dragState.currentX === null) {
+        dragState.active = false;
+        dragState.startX = null;
+        dragState.currentX = null;
+        const canvas = dragState.canvas;
+        dragState.canvas = null;
+        return null;
+    }
+
     const result = {
         canvas: dragState.canvas,
         startX: dragState.startX,
         endX: dragState.currentX
     };
-    
-    // Reset state
+
     dragState.active = false;
     dragState.startX = null;
     dragState.currentX = null;
     dragState.canvas = null;
-    
+
     return result;
 } 

@@ -6,9 +6,10 @@
  * @module viewport
  */
 
+import type { ViewportRange } from './types';
+
 /**
  * State object for managing the visible portion of the waveform
- * @type {Object}
  */
 export const viewport = {
     // Total time range of all signals
@@ -22,14 +23,14 @@ export const viewport = {
     // Zoom state
     zoomLevel: 1,
     MIN_ZOOM: 1,
-    MAX_ZOOM: 10,
+    MAX_ZOOM: 100000, // Set a high initial max that will be adjusted based on signal data
 
     /**
      * Updates the total time range of all signals
      * @param {number} startTime - Start time of all signals
      * @param {number} endTime - End time of all signals
      */
-    setTotalTimeRange(startTime, endTime) {
+    setTotalTimeRange(startTime: number, endTime: number): void {
         this.totalStartTime = startTime;
         this.totalEndTime = endTime;
         this.visibleStartTime = startTime;
@@ -38,16 +39,11 @@ export const viewport = {
 
     /**
      * Updates the maximum zoom level based on signal characteristics
-     * @param {number} minTimeDelta - Smallest time difference between transitions
-     * @param {number} canvasWidth - Width of the display canvas
+     * @param {number} maxZoom - Calculated maximum zoom level
      */
-    updateMaxZoom(minTimeDelta, canvasWidth) {
-        const totalTimeSpan = this.totalEndTime - this.totalStartTime;
-        const minPixelsBetweenTransitions = 20;
-        
-        // Calculate max zoom to ensure smallest delta is at least minPixelsBetweenTransitions wide
-        this.MAX_ZOOM = (canvasWidth / minPixelsBetweenTransitions) * (totalTimeSpan / minTimeDelta);
-        this.MAX_ZOOM = Math.min(Math.max(10, this.MAX_ZOOM), 100000);
+    setMaxZoom(maxZoom: number): void {
+        // Ensure max zoom is at least 1x and no more than 100000x
+        this.MAX_ZOOM = Math.min(Math.max(1, maxZoom), 100000);
 
         // Clamp current zoom if needed
         if (this.zoomLevel > this.MAX_ZOOM) {
@@ -58,11 +54,9 @@ export const viewport = {
 
     /**
      * Gets the current visible time range
-     * @returns {Object} Visible time range
-     * @returns {number} .start - Start time of visible range
-     * @returns {number} .end - End time of visible range
+     * @returns {ViewportRange} Visible time range
      */
-    getVisibleRange() {
+    getVisibleRange(): ViewportRange {
         return {
             start: this.visibleStartTime,
             end: this.visibleEndTime
@@ -73,8 +67,9 @@ export const viewport = {
      * Updates zoom level and recalculates visible range
      * @param {number} newLevel - New zoom level
      * @param {number} [centerTime] - Time value to center the zoom on
+     * @returns {boolean} Whether the zoom level changed
      */
-    setZoom(newLevel, centerTime) {
+    setZoom(newLevel: number, centerTime?: number): boolean {
         const oldLevel = this.zoomLevel;
         this.zoomLevel = Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, newLevel));
         
@@ -89,7 +84,7 @@ export const viewport = {
      * Updates the visible range based on zoom level and center point
      * @param {number} [centerTime] - Optional time value to center the view on
      */
-    updateVisibleRange(centerTime = undefined) {
+    updateVisibleRange(centerTime?: number): void {
         const totalRange = this.totalEndTime - this.totalStartTime;
         const visibleRange = totalRange / this.zoomLevel;
         
@@ -120,7 +115,7 @@ export const viewport = {
      * Pans the view by a given time delta
      * @param {number} timeDelta - Amount of time to pan by
      */
-    pan(timeDelta) {
+    pan(timeDelta: number): void {
         const visibleRange = this.visibleEndTime - this.visibleStartTime;
         
         let newStart = this.visibleStartTime + timeDelta;
