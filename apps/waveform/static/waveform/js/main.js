@@ -13,6 +13,7 @@ import { cursor, handleCanvasClick, moveCursorToStart, moveCursorToEnd } from '.
 import { drawWaveform, drawTimeline, clearAndRedraw } from './waveform.js';
 import { getSignalValueAtTime } from './utils.js';
 import { viewport } from './viewport.js';
+import { virtualScroll } from './virtualScroll.js';
 import { 
     calculateMinTimeDelta, 
     handleWheelZoom, 
@@ -51,165 +52,15 @@ window.getSignalValueAtTime = getSignalValueAtTime;
 window.cursor = cursor;
 
 /**
- * Manages virtual scrolling of signal rows
- * @type {Object}
- */
-const virtualScroll = {
-    rowHeight: 40, // Height of each row in pixels
-    bufferSize: 5, // Number of rows to render above and below viewport
-    container: null,
-    content: null,
-    totalRows: 0,
-    signals: [],
-    rowCache: new Map(), // Cache for row elements
-    
-    /**
-     * Initializes virtual scrolling
-     * @param {Array<Object>} signals - Array of all signals
-     * @param {boolean} [forceRecreate=false] - Whether to force recreation of all rows
-     */
-    initialize(signals, forceRecreate = false) {
-        const isFirstInit = !this.container;
-        
-        // Always clear cache when signals list changes
-        const oldSignalCount = this.signals.length;
-        this.signals = signals;
-        this.totalRows = signals.length;
-        
-        // Clear cache if signal count changes or force recreate
-        if (forceRecreate || oldSignalCount !== signals.length) {
-            this.rowCache.clear();
-        }
-        
-        if (isFirstInit) {
-            this.container = document.getElementById('waveform-rows-container');
-            this.content = document.createElement('div');
-            this.content.style.position = 'relative';
-            this.container.innerHTML = '';
-            this.container.appendChild(this.content);
-            this.container.addEventListener('scroll', () => this.onScroll());
-        }
-        
-        // Update content height
-        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
-        
-        // Initial render
-        this.updateVisibleRows();
-    },
-    
-    /**
-     * Gets or creates a row element for a signal
-     * @param {Object} signal - Signal data
-     * @returns {HTMLElement} Row element
-     */
-    getRow(signal) {
-        const cacheKey = signal.name;
-        if (!this.rowCache.has(cacheKey)) {
-            const row = new SignalRow(signal);
-            this.rowCache.set(cacheKey, row);
-        }
-        return this.rowCache.get(cacheKey).render();
-    },
-    
-    /**
-     * Handles scroll events
-     */
-    onScroll() {
-        requestAnimationFrame(() => this.updateVisibleRows());
-    },
-    
-    /**
-     * Updates which rows are currently rendered based on scroll position
-     */
-    updateVisibleRows() {
-        const scrollTop = this.container.scrollTop;
-        const viewportHeight = this.container.clientHeight;
-        
-        // Calculate visible range
-        let startIndex = Math.floor(scrollTop / this.rowHeight) - this.bufferSize;
-        let endIndex = Math.ceil((scrollTop + viewportHeight) / this.rowHeight) + this.bufferSize;
-        
-        // Clamp indices
-        startIndex = Math.max(0, startIndex);
-        endIndex = Math.min(this.totalRows - 1, endIndex);
-        
-        // Clear existing content
-        this.content.innerHTML = '';
-        
-        // Render visible rows
-        for (let i = startIndex; i <= endIndex && i < this.signals.length; i++) {
-            const signal = this.signals[i];
-            const row = this.getRow(signal);
-            
-            // Position the row absolutely
-            row.style.position = 'absolute';
-            row.style.top = `${i * this.rowHeight}px`;
-            row.style.width = '100%';
-            
-            this.content.appendChild(row);
-        }
-    },
-    
-    /**
-     * Updates the total number of rows and refreshes the display
-     * @param {number} newTotal - New total number of rows
-     */
-    updateTotalRows(newTotal) {
-        this.totalRows = newTotal;
-        this.content.style.height = `${this.totalRows * this.rowHeight}px`;
-        this.updateVisibleRows();
-    }
-};
-
-/**
  * Updates the displayed signals based on tree selection.
  * Uses virtual scrolling to render only visible signals.
  */
 function updateDisplayedSignals() {
     const signalTree = document.getElementById('signal-tree');
+    if (!signalTree || !signalTree.hierarchyRoot) return;
     
-    // Reset cursor canvases to only include timeline
-    const timeline = document.getElementById('timeline');
-    cursor.canvases = timeline ? [timeline] : [];
-    
-    // If no root exists, return early
-    if (!signalTree || !signalTree.hierarchyRoot) {
-        return;
-    }
-    
-    // Helper function to collect selected signals
-    function collectSelectedSignals(node) {
-        let signals = [];
-        if (node.isSignal && node.selected) {
-            signals.push(node.signalData);
-        }
-        for (const child of node.children.values()) {
-            signals = signals.concat(collectSelectedSignals(child));
-        }
-        return signals;
-    }
-    
-    // Get all selected signals
-    const selectedSignals = collectSelectedSignals(signalTree.hierarchyRoot);
-    
-    // Initialize virtual scrolling with only selected signals
-    // Only force recreation on first load
-    virtualScroll.initialize(selectedSignals, !virtualScroll.container);
-    
-    // After updating displayed signals, redraw any visible canvases to reflect radix preferences
-    setTimeout(() => {
-        const visibleCanvases = document.querySelectorAll('.waveform-canvas-container canvas');
-        visibleCanvases.forEach(canvas => {
-            if (canvas.id !== 'timeline' && canvas.signalData) {
-                clearAndRedraw(canvas);
-            }
-        });
-    }, 0);
-    
-    // Redraw timeline if it exists
-    if (timeline) {
-        clearAndRedraw(timeline);
-    }
+    // Use virtualScroll to handle signal display
+    virtualScroll.displaySelectedSignals(signalTree.hierarchyRoot);
 }
 
 // Make updateDisplayedSignals available globally for hierarchy.js

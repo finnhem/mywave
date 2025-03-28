@@ -54,11 +54,16 @@ export class SignalRow {
         // Add data attribute for signal name
         this.element.dataset.signalName = this.signal.name;
         
+        // Create waveform container
+        const waveformContainer = document.createElement('div');
+        waveformContainer.className = 'waveform-container';
+        waveformContainer.appendChild(this.waveformCell.render());
+        
         // Render and append all cells
         this.element.appendChild(this.nameCell.render());
         this.element.appendChild(this.valueCell.render());
         this.element.appendChild(this.radixCell.render());
-        this.element.appendChild(this.waveformCell.render());
+        this.element.appendChild(waveformContainer);
     }
 
     /**
@@ -75,27 +80,49 @@ export class SignalRow {
             // Deselect previous row if different from current
             if (SignalRow.selectedRow && SignalRow.selectedRow !== this) {
                 SignalRow.selectedRow.deselect();
+                // Select this row
+                this.select();
+                // Update selected row reference
+                SignalRow.selectedRow = this;
+            } else if (!SignalRow.selectedRow) {
+                // If no row is selected, select this one
+                this.select();
+                SignalRow.selectedRow = this;
             }
-            
-            this.toggleSelection();
-            
-            // Update selected row reference
-            SignalRow.selectedRow = this.isSelected ? this : null;
+            // If clicking the same row, do nothing (maintain selection)
             
             // Emit selection event that can be listened to by parent components
             const selectionEvent = new CustomEvent('signal-selected', {
                 bubbles: true,
                 detail: { 
                     signal: this.signal,
-                    selected: this.isSelected
+                    selected: true
                 }
             });
             this.element.dispatchEvent(selectionEvent);
         };
 
-        // Add click handlers to name cell and canvas
-        this.nameCell.element.addEventListener('click', handleSelection);
-        this.waveformCell.canvas.addEventListener('click', handleSelection);
+        // Add click handler to the entire row
+        this.element.addEventListener('click', handleSelection);
+
+        // Prevent double handling of canvas clicks
+        this.waveformCell.canvas.addEventListener('click', (evt) => {
+            evt.stopPropagation(); // Stop event from bubbling to row
+            handleSelection(evt);
+        });
+    }
+
+    /**
+     * Selects the row
+     */
+    select() {
+        if (!this.isSelected) {
+            this.isSelected = true;
+            this.element.classList.add('bg-blue-50');
+            this.nameCell.element.classList.add('text-blue-600');
+            this.waveformCell.canvas.classList.add('selected');
+            clearAndRedraw(this.waveformCell.canvas);
+        }
     }
 
     /**
@@ -107,25 +134,6 @@ export class SignalRow {
             this.element.classList.remove('bg-blue-50');
             this.nameCell.element.classList.remove('text-blue-600');
             this.waveformCell.canvas.classList.remove('selected');
-            clearAndRedraw(this.waveformCell.canvas);
-        }
-    }
-
-    /**
-     * Toggles the selection state of the row
-     */
-    toggleSelection() {
-        this.isSelected = !this.isSelected;
-        
-        // Update row styling
-        this.element.classList.toggle('bg-blue-50', this.isSelected);
-        this.nameCell.element.classList.toggle('text-blue-600', this.isSelected);
-        
-        // Update canvas selection state
-        this.waveformCell.canvas.classList.toggle('selected', this.isSelected);
-        
-        // Redraw the waveform to show selection state
-        if (this.signal.data && this.signal.data.length > 0) {
             clearAndRedraw(this.waveformCell.canvas);
         }
     }
