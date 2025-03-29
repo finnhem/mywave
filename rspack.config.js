@@ -6,10 +6,10 @@ module.exports = {
     main: './apps/waveform/static/waveform/js/main.ts',
   },
   output: {
-    filename: '[name].bundle.js',
-    path: path.resolve(__dirname, 'apps/waveform/static/waveform/dist'),
+    filename: 'bundle.js',
+    path: path.resolve(__dirname, 'apps/waveform/static/waveform/js/dist'),
     clean: true,
-    publicPath: '/static/waveform/dist/',
+    publicPath: '/static/waveform/js/dist/',
   },
   module: {
     rules: [

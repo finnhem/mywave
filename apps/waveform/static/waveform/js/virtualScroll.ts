@@ -44,11 +44,21 @@ class VirtualScroll {
         // Get selected signals from hierarchy
         const selectedSignals = this.collectSelectedSignals(hierarchyRoot);
         
-        // Initialize virtual scrolling with selected signals
-        this.initialize(selectedSignals);
+        // Initialize virtual scrolling with selected signals 
+        this.initialize(selectedSignals, true);
         
-        // Update canvases to reflect changes
-        this.updateCanvases();
+        // Force update visible rows to render the signals
+        this.updateVisibleRows();
+        
+        // Update canvases to reflect changes - add a short delay to ensure DOM has updated
+        setTimeout(() => {
+            this.updateCanvases();
+            
+            // Force a second update after a longer delay to catch any sizing issues
+            setTimeout(() => {
+                this.updateCanvases();
+            }, 250);
+        }, 50);
     }
 
     /**

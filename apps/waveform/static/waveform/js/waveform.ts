@@ -16,6 +16,14 @@ import { viewport } from './viewport';
 import { formatSignalValue } from './radix';
 import type { Signal, TimePoint } from './types';
 
+// Extend Window interface for global functions
+declare global {
+    interface Window {
+        formatSignalValue: typeof formatSignalValue | undefined;
+        clearAndRedraw: typeof clearAndRedraw | undefined;
+    }
+}
+
 /**
  * Enum for waveform rendering styles.
  * @readonly
@@ -40,13 +48,27 @@ export function selectWaveformStyle(signal: Signal | null, data: TimePoint[]): W
     // Otherwise infer from data values
     if (data && data.length > 0) {
         const firstValue = data[0].value;
-        // Check if the value is a binary string (0/1) or has 'b' prefix
-        if (firstValue === '0' || firstValue === '1' || 
-            firstValue === 'b0' || firstValue === 'b1') {
-            return WaveformStyle.LOGIC;
+        
+        // Check if the value is clearly multi-bit (contains multiple binary digits or has hex prefix)
+        if (typeof firstValue === 'string') {
+            if (firstValue.startsWith('0x') || firstValue.startsWith('0b') || 
+                firstValue.startsWith('b') && firstValue.length > 2 ||
+                /^[01]{2,}$/.test(firstValue)) {
+                return WaveformStyle.DATA;
+            }
+            // Check if it's a single-bit value
+            if (firstValue === '0' || firstValue === '1' || 
+                firstValue === 'b0' || firstValue === 'b1' ||
+                firstValue === 'x' || firstValue === 'z' ||
+                firstValue === 'X' || firstValue === 'Z') {
+                return WaveformStyle.LOGIC;
+            }
         }
-        // Otherwise treat as data bus
-        return WaveformStyle.DATA;
+        
+        // If it's a number that's not 0 or 1, treat as multibit
+        if (typeof firstValue === 'number' && firstValue !== 0 && firstValue !== 1) {
+            return WaveformStyle.DATA;
+        }
     }
     
     // Default to logic style if no information available
@@ -204,7 +226,8 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
     clearCanvas(ctx, canvas.width, canvas.height);
     
     ctx.save();
-    ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : '#666666';
+    // Use black for normal signals
+    ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
     ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
     ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
     
@@ -244,11 +267,33 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
         const h = height * 0.8; // Height of trapezoid
         const slope = Math.min((x2 - x1) * 0.2, 20); // Slope width, max 20px
         
-        // Get raw value and handle special cases (X, Z)
-        const rawValue = current.value;
+        // Get raw value and convert if needed
+        let rawValue = current.value;
+        if (typeof rawValue !== 'string') {
+            try {
+                // Convert numeric value to hex
+                const bitWidth = signal?.width || 0;
+                rawValue = '0x' + Number(rawValue).toString(16).toUpperCase().padStart(Math.ceil(bitWidth/4), '0');
+            } catch (e) {
+                // Fallback to string representation
+                rawValue = String(rawValue);
+            }
+        }
+        
         const isSpecialValue = rawValue === 'X' || rawValue === 'x' || rawValue === 'Z' || rawValue === 'z';
         
-        // Set fill and stroke styles based on value type
+        // Format value for display
+        let displayValue: string;
+        if (isSpecialValue) {
+            displayValue = rawValue;
+        } else if (typeof window.formatSignalValue === 'function') {
+            // Use the global function if available
+            displayValue = window.formatSignalValue(rawValue, signalName, true);
+        } else {
+            displayValue = formatSignalValue(rawValue, signalName, true);
+        }
+        
+        // Set styles based on value type
         if (rawValue === 'X' || rawValue === 'x') {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
@@ -257,7 +302,7 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
             ctx.strokeStyle = canvas.classList.contains('selected') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
         } else {
             ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
-            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : '#666666';
+            ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
         }
         
         // Draw trapezoid
@@ -270,41 +315,30 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
         ctx.fill();
         ctx.stroke();
         
-        // Format value for display
-        const displayValue = isSpecialValue ? rawValue : formatSignalValue(rawValue, signalName);
-        
-        // Calculate visible width of the segment
-        const visibleX1 = Math.max(0, x1);
-        const visibleX2 = Math.min(width, x2);
-        const visibleWidth = visibleX2 - visibleX1;
-        
-        // Set text style based on value type
+        // Set text style
         if (isSpecialValue) {
             ctx.fillStyle = rawValue.toLowerCase() === 'x' ? 
                 (canvas.classList.contains('selected') ? '#B91C1C' : '#DC2626') : // Red for X
                 (canvas.classList.contains('selected') ? '#1D4ED8' : '#2563EB');  // Blue for Z
             ctx.font = 'bold 12px monospace';
         } else {
-            ctx.fillStyle = '#333333';
+            ctx.fillStyle = 'black';
             ctx.font = '12px monospace';
         }
         
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        
+        // Position text in the center of the segment
         const textX = x1 + (x2 - x1) / 2;
         const textY = y + h / 2;
         
-        // Measure text width
+        // Calculate segment width and text width
+        const segmentWidth = x2 - x1;
         const textWidth = ctx.measureText(displayValue).width;
-        const minSegmentWidth = Math.max(40, textWidth + 20); // Minimum width needed to display text
         
-        // Only draw text if:
-        // 1. The segment is wide enough to fit the text with padding
-        // 2. The text center point is within the canvas
-        // 3. The segment is fully visible (no partial text)
-        if (visibleWidth >= minSegmentWidth && 
-            textX >= 0 && textX <= width &&
-            x1 >= -1 && x2 <= width + 1) {
+        // Draw text if segment is wide enough and visible
+        if (segmentWidth > Math.max(40, textWidth + 20) && textX >= 0 && textX <= width) {
             ctx.fillText(displayValue, textX, textY);
         }
     }

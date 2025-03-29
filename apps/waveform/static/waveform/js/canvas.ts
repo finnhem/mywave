@@ -23,22 +23,31 @@ export function updateCanvasResolution(canvas: HTMLCanvasElement): CanvasContext
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     
-    // Set canvas size in CSS pixels
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-    
-    // Set canvas internal dimensions accounting for DPI
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    // Only resize the canvas if the dimensions have changed
+    if (canvas.width !== Math.round(rect.width * dpr) || 
+        canvas.height !== Math.round(rect.height * dpr)) {
+        
+        // Update CSS dimensions if needed
+        if (canvas.style.width !== `${rect.width}px` || 
+            canvas.style.height !== `${rect.height}px`) {
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+        }
+        
+        // Set canvas internal dimensions accounting for DPI
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+    }
     
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
     
+    // Reset transform and clear any previous content
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
     // Scale drawing operations for high DPI displays
     ctx.scale(dpr, dpr);
-    
-    // Clear any previous content
-    ctx.clearRect(0, 0, rect.width, rect.height);
     
     return {
         width: rect.width,

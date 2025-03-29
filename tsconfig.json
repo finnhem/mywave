@@ -15,11 +15,6 @@
     "noImplicitAny": false,
     "lib": ["DOM", "ES2023"]
   },
-  "include": [
-    "apps/waveform/static/waveform/js/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "apps/waveform/static/waveform/js/dist"
-  ]
-} 
+  "include": ["apps/waveform/static/waveform/js/**/*"],
+  "exclude": ["node_modules", "apps/waveform/static/waveform/js/dist"]
+}

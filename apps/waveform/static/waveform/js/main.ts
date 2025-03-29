@@ -45,16 +45,13 @@ import {
 } from './radix';
 import { SignalRow } from './components/SignalRow';
 import type { Signal, SignalData, TimePoint, HierarchyNode } from './types';
-import { setupCursor } from './cursor';
-import { setupSignalHandlers } from './signal';
-import { setupZoomControls } from './zoom';
 
 // Extend Window interface to include our global properties
 declare global {
     interface Window {
         signalPreferences: typeof signalPreferences;
-        formatSignalValue: typeof formatSignalValue;
-        clearAndRedraw: typeof clearAndRedraw;
+        formatSignalValue: typeof formatSignalValue | undefined;
+        clearAndRedraw: typeof clearAndRedraw | undefined;
         getSignalValueAtTime: typeof getSignalValueAtTime;
         cursor: typeof cursor;
         timescale: { value: number; unit: string };
@@ -181,14 +178,18 @@ function uploadVCD(): void {
     
     if (!form || !status) return;
     
-    form.onsubmit = async (e: SubmitEvent) => {
+    form.addEventListener('submit', async (e: SubmitEvent) => {
         e.preventDefault();
+        status.textContent = 'Uploading file...';
         
         const formData = new FormData(form);
         
         try {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') as HTMLInputElement | null;
-            if (!csrfToken) throw new Error('CSRF token not found');
+            if (!csrfToken) {
+                status.textContent = 'Error: CSRF token not found';
+                return;
+            }
 
             const response = await fetch('', {
                 method: 'POST',
@@ -199,19 +200,24 @@ function uploadVCD(): void {
                 credentials: 'same-origin'
             });
             
+            if (!response.ok) {
+                status.textContent = `Error: Server responded with ${response.status} ${response.statusText}`;
+                return;
+            }
+            
             const data = await response.json();
             
             if (data.success) {
-                status.textContent = data.message;
+                status.textContent = data.message || 'File uploaded successfully';
                 processSignals(data.signals);
             } else {
-                status.textContent = data.message;
+                status.textContent = data.message || 'Error uploading file';
             }
         } catch (error) {
-            status.textContent = `Error uploading file: ${error instanceof Error ? error.message : String(error)}`;
             console.error('Upload error:', error);
+            status.textContent = `Error uploading file: ${error instanceof Error ? error.message : String(error)}`;
         }
-    };
+    });
 }
 
 function initializeTimeline(): void {
@@ -220,6 +226,28 @@ function initializeTimeline(): void {
     
     // Initialize zoom handlers
     initializeZoomHandlers(timelineCanvas);
+}
+
+/**
+ * Updates the value displays for all signals based on cursor position.
+ */
+function updateValueDisplays(): void {
+    // Update the value displays based on cursor position
+    const valueDisplays = document.querySelectorAll('.value-display');
+    valueDisplays.forEach(display => {
+        const signalName = display.getAttribute('data-signal-name');
+        if (!signalName) return;
+        
+        const canvas = document.querySelector(`canvas[data-signal-name="${signalName}"]`) as HTMLCanvasElement | null;
+        if (!canvas || !canvas.signalData) return;
+        
+        const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
+        const formattedValue = formatSignalValue(value, signalName);
+        const valueSpan = display.querySelector('span');
+        if (valueSpan) {
+            valueSpan.textContent = formattedValue;
+        }
+    });
 }
 
 /**
@@ -304,30 +332,20 @@ interface WaveformViewerOptions {
 }
 
 export class WaveformViewer {
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
   private options: WaveformViewerOptions;
 
   constructor(options: WaveformViewerOptions) {
     this.options = options;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = options.width;
-    this.canvas.height = options.height;
-    
-    const context = this.canvas.getContext('2d');
-    if (!context) {
-      throw new Error('Could not get 2D context from canvas');
-    }
-    this.ctx = context;
-    
-    options.container.appendChild(this.canvas);
     this.initialize();
   }
 
   private initialize(): void {
-    // Initialize cursor handling
-    this.canvas.addEventListener('click', handleCanvasClick);
-    cursor.canvases.push(this.canvas);
+    // Initialize cursor handling for waveform displays
+    // Register cursor handlers for all signal canvases
+    document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas-container canvas').forEach(canvas => {
+      canvas.addEventListener('click', handleCanvasClick);
+      cursor.canvases.push(canvas);
+    });
 
     // Initialize signal navigation
     const signalContainer = document.getElementById('signal-container');
@@ -346,33 +364,19 @@ export class WaveformViewer {
       });
     }
 
-    // Initialize zoom handling
-    this.canvas.addEventListener('wheel', handleWheelZoom);
-    initializeZoomHandlers();
-
-    // Start rendering
-    this.render();
-  }
-
-  private render(): void {
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // Add initial rendering logic here
-    this.ctx.fillStyle = '#f0f0f0';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // Update value displays
-    updateValueDisplays();
-    
-    // Request next frame
-    requestAnimationFrame(() => this.render());
+    // Initialize the timeline
+    const timeline = document.getElementById('timeline') as HTMLCanvasElement | null;
+    if (timeline) {
+      timeline.addEventListener('wheel', handleWheelZoom);
+      initializeZoomHandlers(timeline);
+      cursor.canvases.push(timeline);
+    }
   }
 }
 
 // Initialize the waveform viewer when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('waveform-container');
+  const container = document.getElementById('waveform-viewer-container');
   if (!container) {
     throw new Error('Could not find waveform container element');
   }
