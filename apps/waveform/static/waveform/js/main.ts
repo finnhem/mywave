@@ -9,9 +9,10 @@
  */
 
 import { SignalRow } from './components/SignalRow';
+import { canvasDimensionsCache } from './components/WaveformCell';
 import { cursor, handleCanvasClick, moveCursorToEnd, moveCursorToStart } from './cursor';
 import {
-  type HierarchyNode,
+  HierarchyNode,
   buildHierarchy,
   createTreeElement,
   toggleNodeSelection,
@@ -29,7 +30,6 @@ import {
 import type { Signal, SignalData, TimePoint } from './types';
 import { getSignalValueAtTime } from './utils';
 import { viewport } from './viewport';
-import { virtualScroll } from './virtualScroll';
 import { clearAndRedraw, drawTimeline, drawWaveform } from './waveform';
 import {
   calculateMaxZoom,
@@ -42,7 +42,7 @@ import {
   updateZoomDisplay,
 } from './zoom';
 
-// Create interface extending HierarchyNode to be compatible with SignalNode
+// Create interface extending HierarchyNode as needed
 interface ExtendedHierarchyNode extends HierarchyNode {
   signals?: Signal[];
 }
@@ -72,19 +72,31 @@ window.clearAndRedraw = clearAndRedraw;
 window.getSignalValueAtTime = getSignalValueAtTime;
 window.cursor = cursor;
 
+// Make updateDisplayedSignals available globally for hierarchy.js
+window.updateDisplayedSignals = updateDisplayedSignals;
+
 /**
  * Updates the displayed signals based on tree selection.
- * Uses virtual scrolling to render only visible signals.
  */
 function updateDisplayedSignals(): void {
   const signalTree = document.getElementById('signal-tree');
   if (!signalTree || !signalTree.hierarchyRoot) return;
 
-  // Use virtualScroll to handle signal display
-  // Using unknown and any cast due to type incompatibility between hierarchy.ts and virtualScroll.ts
-  // implementations of HierarchyNode. This is a deliberate workaround to avoid extensive refactoring.
-  // biome-ignore lint/suspicious/noExplicitAny: This is a deliberate workaround
-  virtualScroll.displaySelectedSignals(signalTree.hierarchyRoot as unknown as any);
+  // Remove virtual scroll implementation and replace with direct rendering
+  const container = document.getElementById('waveform-rows-container');
+  if (!container) return;
+  
+  // Get all selected signals
+  const selectedSignals = collectSelectedSignals(signalTree.hierarchyRoot);
+  
+  // Clear the container
+  container.innerHTML = '';
+  
+  // Render all selected signals directly
+  selectedSignals.forEach(signal => {
+    const row = new SignalRow(signal);
+    container.appendChild(row.render());
+  });
 
   // Initialize zoom handlers for all signal canvases
   const signalCanvases = document.querySelectorAll<HTMLCanvasElement>(
@@ -98,8 +110,24 @@ function updateDisplayedSignals(): void {
   }
 }
 
-// Make updateDisplayedSignals available globally for hierarchy.js
-window.updateDisplayedSignals = updateDisplayedSignals;
+/**
+ * Collects all selected signals from the hierarchy
+ */
+function collectSelectedSignals(node: ExtendedHierarchyNode): Signal[] {
+  let signals: Signal[] = [];
+  if (node.isSignal && node.selected && node.signalData) {
+    signals.push(node.signalData);
+  }
+  
+  // Handle children as Map as defined in HierarchyNode
+  if (node.children instanceof Map) {
+    for (const child of node.children.values()) {
+      signals = signals.concat(collectSelectedSignals(child as ExtendedHierarchyNode));
+    }
+  }
+  
+  return signals;
+}
 
 /**
  * Processes signal data and initializes the display.
@@ -121,11 +149,11 @@ function processSignals(data: SignalData): void {
   signalTree.innerHTML = '';
   signalTree.appendChild(treeElement);
 
-  // Initialize virtual scrolling with all signals
-  virtualScroll.initialize(data.signals);
-
-  // Initialize timeline if signals exist
+  // Handle signals and initialize timeline
   if (data.signals.length > 0) {
+    // Update displayed signals with all signals initially
+    updateDisplayedSignals();
+    
     // Find the global time range across all signals
     let globalStartTime = Number.POSITIVE_INFINITY;
     let globalEndTime = Number.NEGATIVE_INFINITY;
@@ -237,6 +265,9 @@ function uploadVCD(): void {
   });
 }
 
+/**
+ * Initialize the timeline canvas with zoom handlers
+ */
 function initializeTimeline(): void {
   const timelineCanvas = document.getElementById('timeline') as HTMLCanvasElement | null;
   if (!timelineCanvas) return;

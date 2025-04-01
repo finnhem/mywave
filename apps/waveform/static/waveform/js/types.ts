@@ -70,15 +70,6 @@ export enum WaveformStyle {
   DATA = 'data',
 }
 
-export interface VirtualScrollState {
-  displayedSignals: Signal[];
-  startIndex: number;
-  endIndex: number;
-  rowHeight: number;
-  containerHeight: number;
-  totalHeight: number;
-}
-
 // Extend HTMLCanvasElement with custom properties
 declare global {
   interface HTMLCanvasElement {
