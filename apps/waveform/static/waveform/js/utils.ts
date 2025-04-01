@@ -157,10 +157,12 @@ export function findNearestPoint(data: TimePoint[], time: number): TimePoint | n
 }
 
 /**
+ * Deprecated: Use eventManager.debounce instead.
  * Creates a debounced function that delays invoking func until after wait milliseconds
  * @param {Function} func - Function to debounce
  * @param {number} wait - Wait time in milliseconds
  * @returns Debounced function
+ * @deprecated Use eventManager.debounce from the events module instead
  */
 export function debounce<T extends (...args: unknown[]) => void>(
   func: T,

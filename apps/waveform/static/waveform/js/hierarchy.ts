@@ -6,7 +6,19 @@
  * @module hierarchy
  */
 
+import { eventManager } from './events';
 import type { Signal } from './types';
+
+// First, let's add the HierarchyChangeEvent to events.ts
+import('./events').then(({ eventManager }) => {
+  // Listen for hierarchy change events
+  eventManager.on('hierarchy-change', (_event) => {
+    // Update the displayed signals when hierarchy changes
+    if (typeof window.updateDisplayedSignals === 'function') {
+      window.updateDisplayedSignals();
+    }
+  });
+});
 
 /**
  * Represents a node in the signal hierarchy tree
@@ -109,7 +121,9 @@ function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
     const expander = document.createElement('span');
     expander.className = 'expander';
     expander.textContent = node.expanded ? '▼' : '▶';
-    expander.onclick = (e: MouseEvent) => {
+
+    // Use event manager for the click handler
+    eventManager.addDOMListener(expander, 'click', (e: MouseEvent) => {
       e.stopPropagation();
       node.expanded = !node.expanded;
       expander.textContent = node.expanded ? '▼' : '▶';
@@ -117,7 +131,8 @@ function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
       for (let i = 0; i < children.length; i++) {
         (children[i] as HTMLElement).style.display = node.expanded ? '' : 'none';
       }
-    };
+    });
+
     header.appendChild(expander);
   }
 
@@ -125,12 +140,15 @@ function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.checked = node.visible;
-  checkbox.title = "Show/hide signal";
+  checkbox.title = 'Show/hide signal';
   checkbox.className = 'mr-2';
-  checkbox.onclick = (e: MouseEvent) => {
+
+  // Use event manager for the click handler
+  eventManager.addDOMListener(checkbox, 'click', (e: MouseEvent) => {
     e.stopPropagation();
     toggleNodeVisibility(node, checkbox.checked);
-  };
+  });
+
   header.appendChild(checkbox);
 
   // Add name label
@@ -177,7 +195,12 @@ function toggleNodeVisibility(
   if (children.length === 0) {
     updateParentVisibility(node);
     if (!skipUpdate) {
-      window.updateDisplayedSignals();
+      // Emit hierarchy change event
+      eventManager.emit({
+        type: 'hierarchy-change',
+        node: node,
+        visible: visible,
+      });
     }
     return;
   }
@@ -192,7 +215,12 @@ function toggleNodeVisibility(
 
   // Only trigger display update after all changes are processed
   if (!skipUpdate) {
-    window.updateDisplayedSignals();
+    // Emit hierarchy change event
+    eventManager.emit({
+      type: 'hierarchy-change',
+      node: node,
+      visible: visible,
+    });
   }
 }
 

@@ -1,4 +1,5 @@
 import { timeToCanvasX } from './canvas';
+import { eventManager } from './events';
 import { formatSignalValue } from './radix';
 import type { CursorState, TimePoint } from './types';
 import { getSignalValueAtTime } from './utils';
@@ -55,9 +56,11 @@ export const cursor: CursorState = {
   endTime: 0,
   canvases: [],
   updateDisplay() {
-    for (const canvas of this.canvases) {
-      clearAndRedraw(canvas);
-    }
+    // Emit redraw request event for all canvases
+    eventManager.emit({
+      type: 'redraw-request',
+    });
+
     updateValueDisplays();
   },
 };
@@ -66,7 +69,7 @@ export const cursor: CursorState = {
  * Handles click events on canvas elements to update cursor position
  * @param event - Mouse click event
  */
-export function handleCanvasClick(event: MouseEvent): void {
+export function handleCanvasClick(event: MouseEvent, skipEventEmission = false): void {
   const canvas = event.target as HTMLCanvasElement;
   if (!canvas) return;
 
@@ -77,6 +80,19 @@ export function handleCanvasClick(event: MouseEvent): void {
   // Convert x position to time value
   const time = (x / canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
 
+  // Emit canvas click event, only if not skipped
+  if (!skipEventEmission) {
+    eventManager.emit({
+      type: 'canvas-click',
+      signalName: canvas.signalName || '',
+      x,
+      y: event.clientY - rect.top,
+      time,
+      originalEvent: event,
+      _isInternal: true, // Mark as internal to prevent recursive handling
+    });
+  }
+
   // Update cursor position and display
   moveCursorTo(time);
 }
@@ -86,7 +102,16 @@ export function handleCanvasClick(event: MouseEvent): void {
  * @param time - Target time value
  */
 export function moveCursorTo(time: number): void {
+  const previousTime = cursor.currentTime;
   cursor.currentTime = Math.max(cursor.startTime, Math.min(cursor.endTime, time));
+
+  // Emit cursor time change event
+  eventManager.emit({
+    type: 'cursor-time-change',
+    time: cursor.currentTime,
+    previousTime,
+  });
+
   cursor.updateDisplay();
 }
 

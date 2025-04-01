@@ -11,9 +11,9 @@
 
 import { clearCanvas, drawCursor, timeToCanvasX, updateCanvasResolution } from './canvas';
 import { cursor } from './cursor';
-// biome-ignore lint/suspicious/noExplicitAny: This is using the external function's type definition
+import { eventManager } from './events';
 import { formatSignalValue, getSignalRadix } from './radix';
-import type { Signal, TimePoint } from './types';
+import { type Signal, type TimePoint, WaveformStyle } from './types';
 import { formatTime } from './utils';
 import { viewport } from './viewport';
 
@@ -25,14 +25,8 @@ declare global {
   }
 }
 
-/**
- * Enum for waveform rendering styles.
- * @readonly
- */
-export enum WaveformStyle {
-  LOGIC = 'logic', // Single-bit digital signals
-  DATA = 'data', // Multi-bit bus signals
-}
+// WaveformStyle enum is imported from types.ts and used to determine the rendering style
+// (LOGIC for single-bit signals, DATA for multi-bit bus signals)
 
 /**
  * Determines the appropriate waveform style based on signal properties.
@@ -91,28 +85,54 @@ export function selectWaveformStyle(signal: Signal | null, data: TimePoint[]): W
  * @param {number} [centerTime] - Optional time value to center the view on
  */
 export function setZoom(newLevel: number, centerTime?: number): void {
-  if (viewport.setZoom(newLevel, centerTime)) {
-    // Only redraw if zoom actually changed
-    const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas');
-    for (let i = 0; i < canvases.length; i++) {
-      clearAndRedraw(canvases[i]);
-    }
-  }
+  const previousZoom = viewport.zoomLevel;
+  viewport.setZoom(newLevel, centerTime);
+
+  // Emit zoom change event
+  eventManager.emit({
+    type: 'zoom-change',
+    level: viewport.zoomLevel,
+    previousLevel: previousZoom,
+    centerTime,
+  });
+
+  // Request redraw of all canvases
+  eventManager.emit({
+    type: 'redraw-request',
+  });
 }
 
 /**
- * Clears and redraws a canvas with updated content.
- * @param {HTMLCanvasElement} canvas - Canvas to redraw
+ * Clears a canvas and redraws its waveform
+ * @param canvas - Canvas to redraw
  */
 export function clearAndRedraw(canvas: HTMLCanvasElement): void {
+  // Ensure canvas has valid dimensions
+  if (canvas.width === 0 || canvas.height === 0) {
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // Handle timeline canvas specially
   if (canvas.id === 'timeline') {
     drawTimeline(canvas);
-  } else {
-    const signalData = canvas.signalData;
-    if (signalData) {
-      drawWaveform(canvas, signalData, canvas.signal);
-    }
+    return;
   }
+
+  // Get the signal data from the canvas
+  const signalData = canvas.signalData;
+  const signal = canvas.signal;
+
+  if (!signalData || !signal) {
+    // Just clear the canvas if no data is available
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  // Clear and redraw waveform
+  drawWaveform(canvas, signalData, signal);
 }
 
 /**

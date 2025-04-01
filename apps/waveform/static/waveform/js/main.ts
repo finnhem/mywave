@@ -11,8 +11,9 @@
 import { SignalRow } from './components/SignalRow';
 import { canvasDimensionsCache } from './components/WaveformCell';
 import { cursor, handleCanvasClick, moveCursorToEnd, moveCursorToStart } from './cursor';
+import { type RadixChangeEvent, type ViewportRangeChangeEvent, eventManager } from './events';
 import {
-  HierarchyNode,
+  type HierarchyNode,
   buildHierarchy,
   createTreeElement,
   toggleNodeVisibility,
@@ -85,27 +86,27 @@ function updateDisplayedSignals(): void {
   // Remove virtual scroll implementation and replace with direct rendering
   const container = document.getElementById('waveform-rows-container');
   if (!container) return;
-  
+
   // Get all visible signals
   const visibleSignals = collectVisibleSignals(signalTree.hierarchyRoot);
-  
+
   // Store active signal name before clearing the container
-  const activeSignalName = SignalRow.activeSignalName;
-  
+  const _activeSignalName = SignalRow.activeSignalName;
+
   // Clear the container
   container.innerHTML = '';
-  
+
   // Render all visible signals directly
-  visibleSignals.forEach(signal => {
+  for (const signal of visibleSignals) {
     const row = new SignalRow(signal);
     container.appendChild(row.render());
-  });
+  }
 
   // Initialize zoom handlers for all signal canvases
   const signalCanvases = document.querySelectorAll<HTMLCanvasElement>(
     '.waveform-canvas-container canvas'
   );
-  
+
   // Ensure each canvas has dimensions and signal data set properly
   for (let i = 0; i < signalCanvases.length; i++) {
     const canvas = signalCanvases[i];
@@ -119,26 +120,26 @@ function updateDisplayedSignals(): void {
           canvas.height = dimensions.height;
         }
       }
-      
+
       // Make sure we have a valid height and width for drawing
       if (canvas.width === 0 || canvas.height === 0) {
         canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
         canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
-        
+
         // Store dimensions in cache
         if (signalName) {
           canvasDimensionsCache.set(signalName, {
             width: canvas.width,
-            height: canvas.height
+            height: canvas.height,
           });
         }
       }
-      
+
       // Draw the waveform if canvas has valid dimensions
       if (canvas.width > 0 && canvas.height > 0 && canvas.signalData) {
         drawWaveform(canvas, canvas.signalData, canvas.signal);
       }
-      
+
       initializeZoomHandlers(canvas);
     }
   }
@@ -152,14 +153,14 @@ function collectVisibleSignals(node: ExtendedHierarchyNode): Signal[] {
   if (node.isSignal && node.visible && node.signalData) {
     signals.push(node.signalData);
   }
-  
+
   // Handle children as Map as defined in HierarchyNode
   if (node.children instanceof Map) {
     for (const child of node.children.values()) {
       signals = signals.concat(collectVisibleSignals(child as ExtendedHierarchyNode));
     }
   }
-  
+
   return signals;
 }
 
@@ -187,7 +188,7 @@ function processSignals(data: SignalData): void {
   if (data.signals.length > 0) {
     // Update displayed signals with all signals initially
     updateDisplayedSignals();
-    
+
     // Find the global time range across all signals
     let globalStartTime = Number.POSITIVE_INFINITY;
     let globalEndTime = Number.NEGATIVE_INFINITY;
@@ -451,4 +452,89 @@ document.addEventListener('DOMContentLoaded', () => {
     height: container.clientHeight,
     timeScale: 1,
   });
+});
+
+/**
+ * Initialize the centralized event handling system.
+ * This sets up global handlers and connects various components.
+ */
+function initializeEventSystem(): void {
+  // Initialize redraw listeners for cursor time changes
+  eventManager.on('cursor-time-change', () => {
+    // Trigger a redraw request for all canvases when cursor changes
+    eventManager.emit({
+      type: 'redraw-request',
+    });
+  });
+
+  // Handle viewport range changes
+  eventManager.on('viewport-range-change', (event: ViewportRangeChangeEvent) => {
+    // Update UI components that show the viewport range
+    const startTimeDisplay = document.getElementById('visible-start-time');
+    const endTimeDisplay = document.getElementById('visible-end-time');
+
+    if (startTimeDisplay) {
+      startTimeDisplay.textContent = `${event.start.toFixed(2)} ns`;
+    }
+
+    if (endTimeDisplay) {
+      endTimeDisplay.textContent = `${event.end.toFixed(2)} ns`;
+    }
+
+    // Request redraw when viewport changes
+    eventManager.emit({
+      type: 'redraw-request',
+    });
+  });
+
+  // Handle radix changes
+  eventManager.on('radix-change', (event: RadixChangeEvent) => {
+    // Find and update the signal row
+    const signalRow = document.querySelector(`[data-signal-name="${event.signalName}"]`);
+    if (signalRow) {
+      // Update value cell
+      const valueCell = signalRow.querySelector('.value-display');
+      const canvas = signalRow.querySelector('canvas') as HTMLCanvasElement;
+      if (valueCell && canvas && canvas.signalData) {
+        // Get the current cursor time and value
+        import('./cursor').then(({ cursor }) => {
+          import('./utils').then(({ getSignalValueAtTime }) => {
+            import('./radix').then(({ formatSignalValue }) => {
+              // Update value display
+              if (canvas.signalData) {
+                const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
+                const formattedValue = formatSignalValue(value, event.signalName, true);
+
+                // Update the valueCell's span (if it exists) or fallback to updating the valueCell directly
+                const valueSpan = valueCell.querySelector('span');
+                if (valueSpan) {
+                  valueSpan.textContent = formattedValue;
+                } else {
+                  valueCell.textContent = formattedValue;
+                }
+              }
+            });
+          });
+        });
+      }
+    }
+  });
+
+  // Debounced window resize handler
+  const handleWindowResize = eventManager.debounce(() => {
+    // Emit redraw request on window resize
+    eventManager.emit({
+      type: 'redraw-request',
+    });
+  }, 100);
+
+  // Add global window resize handler
+  window.addEventListener('resize', handleWindowResize);
+
+  console.log('Event system initialized');
+}
+
+// Call the initialization function when the document is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initializeEventSystem();
 });

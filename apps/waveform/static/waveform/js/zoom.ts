@@ -17,6 +17,7 @@ import {
   updateDrag,
 } from './canvas';
 import { cursor } from './cursor';
+import { type RedrawRequestEvent, eventManager } from './events';
 import type { TimePoint } from './types';
 import { viewport } from './viewport';
 import { clearAndRedraw } from './waveform';
@@ -63,11 +64,22 @@ export function calculateMaxZoom(
  * Sets the zoom level and updates the view.
  */
 export function setZoom(zoomLevel: number, centerTime?: number): void {
+  const previousZoomLevel = viewport.zoomLevel;
   viewport.setZoom(zoomLevel, centerTime);
-  // Update all canvases
-  for (let i = 0; i < cursor.canvases.length; i++) {
-    clearAndRedraw(cursor.canvases[i]);
-  }
+
+  // Emit zoom change event
+  eventManager.emit({
+    type: 'zoom-change',
+    level: zoomLevel,
+    previousLevel: previousZoomLevel,
+    centerTime,
+  });
+
+  // Emit redraw request event
+  eventManager.emit({
+    type: 'redraw-request',
+  });
+
   // Update zoom display
   updateZoomDisplay();
 }
@@ -83,9 +95,9 @@ export function updateZoomDisplay(): void {
 }
 
 /**
- * Handles mouse wheel zoom events.
+ * Creates a throttled wheel event handler to prevent too many zoom events
  */
-export function handleWheelZoom(event: WheelEvent): void {
+const throttledWheelHandler = eventManager.throttle((event: WheelEvent) => {
   // Only handle zoom when CTRL is pressed
   if (!event.ctrlKey) return;
 
@@ -103,6 +115,13 @@ export function handleWheelZoom(event: WheelEvent): void {
   const newZoomLevel = viewport.zoomLevel * zoomFactor;
 
   setZoom(newZoomLevel, timeAtMouse);
+}, 50); // 50ms throttle for smoother zooming
+
+/**
+ * Handles mouse wheel zoom events.
+ */
+export function handleWheelZoom(event: WheelEvent): void {
+  throttledWheelHandler(event);
 }
 
 /**
@@ -113,13 +132,7 @@ export function handleZoomIn(): void {
   const centerTime =
     viewport.getVisibleRange().start +
     (viewport.getVisibleRange().end - viewport.getVisibleRange().start) / 2;
-  viewport.setZoom(zoomLevel, centerTime);
-  // Update all canvases
-  for (let i = 0; i < cursor.canvases.length; i++) {
-    clearAndRedraw(cursor.canvases[i]);
-  }
-  // Update zoom display
-  updateZoomDisplay();
+  setZoom(zoomLevel, centerTime);
 }
 
 /**
@@ -150,9 +163,9 @@ export function handleZoomDragStart(event: MouseEvent): void {
 }
 
 /**
- * Handles updates during a zoom drag operation.
+ * Throttled drag update handler to improve performance
  */
-export function handleZoomDragUpdate(event: MouseEvent): void {
+const throttledDragUpdate = eventManager.throttle((event: MouseEvent) => {
   const update = updateDrag(event);
   if (!update) return;
 
@@ -160,8 +173,21 @@ export function handleZoomDragUpdate(event: MouseEvent): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  clearAndRedraw(canvas);
+  // Emit redraw request first to clear the canvas
+  eventManager.emit({
+    type: 'redraw-request',
+    targetCanvas: canvas,
+  });
+
+  // Draw the overlay
   drawOverlay(ctx, update.startX, update.currentX, canvas.height);
+}, 16); // ~60fps throttle
+
+/**
+ * Handles updates during a zoom drag operation.
+ */
+export function handleZoomDragUpdate(event: MouseEvent): void {
+  throttledDragUpdate(event);
 }
 
 /**
@@ -179,7 +205,10 @@ export function handleZoomDragEnd(_event: MouseEvent): void {
   // Require minimum width for zoom selection
   const minWidth = 5;
   if (Math.abs(endX - startX) < minWidth) {
-    clearAndRedraw(canvas);
+    eventManager.emit({
+      type: 'redraw-request',
+      targetCanvas: canvas,
+    });
     return;
   }
 
@@ -198,10 +227,6 @@ export function handleZoomDragEnd(_event: MouseEvent): void {
 
   // Set zoom centered on selection
   setZoom(newZoomLevel, centerTime);
-
-  for (let i = 0; i < cursor.canvases.length; i++) {
-    clearAndRedraw(cursor.canvases[i]);
-  }
 }
 
 /**
@@ -209,6 +234,14 @@ export function handleZoomDragEnd(_event: MouseEvent): void {
  * @param {HTMLCanvasElement} canvas - Canvas to initialize
  */
 export function initializeZoomHandlers(canvas: HTMLCanvasElement): void {
-  canvas.addEventListener('wheel', handleWheelZoom);
-  canvas.addEventListener('mousedown', handleZoomDragStart);
+  // Use event manager to handle event registration and cleanup
+  eventManager.addDOMListener(canvas, 'wheel', handleWheelZoom, { passive: false });
+  eventManager.addDOMListener(canvas, 'mousedown', handleZoomDragStart);
+
+  // Register a listener for redraw requests
+  eventManager.on('redraw-request', (event: RedrawRequestEvent) => {
+    if (!event.targetCanvas || event.targetCanvas === canvas) {
+      clearAndRedraw(canvas);
+    }
+  });
 }

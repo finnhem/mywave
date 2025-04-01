@@ -6,6 +6,7 @@
  */
 
 import { cursor } from './cursor';
+import { eventManager } from './events';
 import { Signal, TimePoint } from './types';
 import { binToHex, getSignalValueAtTime, hexToBin } from './utils';
 import { clearAndRedraw } from './waveform';
@@ -216,29 +217,17 @@ export function updateSignalRadix(
   // Clear cache for this signal to force reformatting
   signalPreferences.cachedValues[signalName] = {};
 
-  // Find and update the signal row
-  const signalRow = document.querySelector(`[data-signal-name="${signalName}"]`);
-  if (signalRow) {
-    // Update value cell
-    const valueCell = signalRow.querySelector('.value-display');
-    const canvas = signalRow.querySelector('canvas') as HTMLCanvasElement;
-    if (valueCell && canvas && canvas.signalData) {
-      // Update value display
-      const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
-      const formattedValue = formatSignalValue(value, signalName, true);
+  // Emit a radix-change event instead of direct DOM manipulation
+  eventManager.emit({
+    type: 'radix-change',
+    signalName,
+    radix: newRadix,
+  });
 
-      // Update the valueCell's span (if it exists) or fallback to updating the valueCell directly
-      const valueSpan = valueCell.querySelector('span');
-      if (valueSpan) {
-        valueSpan.textContent = formattedValue;
-      } else {
-        valueCell.textContent = formattedValue;
-      }
-
-      // Redraw waveform canvas to update segment values
-      clearAndRedraw(canvas);
-    }
-  }
+  // Request a redraw of affected canvases
+  eventManager.emit({
+    type: 'redraw-request',
+  });
 
   // Call callback if provided
   if (callback) callback();

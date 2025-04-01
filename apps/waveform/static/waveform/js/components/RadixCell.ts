@@ -3,6 +3,7 @@
  * @module components/RadixCell
  */
 
+import { eventManager } from '../events';
 import { signalPreferences, updateSignalRadix } from '../radix';
 import type { Signal } from '../types';
 import { BaseCell } from './BaseCell';
@@ -35,8 +36,8 @@ export class RadixCell extends BaseCell {
     const initialRadix = signalPreferences.radix[this.signal.name] || 'bin';
     this.updateDisplay(initialRadix);
 
-    // Add click handler for cycling through radix options
-    this.radixDisplay.addEventListener('click', (e) => {
+    // Add click handler for cycling through radix options using eventManager
+    eventManager.addDOMListener(this.radixDisplay, 'click', (e) => {
       e.stopPropagation(); // Prevent row selection
       this.cycleRadix();
     });

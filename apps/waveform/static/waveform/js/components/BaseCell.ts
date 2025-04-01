@@ -2,6 +2,7 @@
  * Base cell component that provides common functionality for all cells
  */
 
+import { eventManager } from '../events';
 import type { Signal } from '../types';
 
 export abstract class BaseCell {
@@ -46,7 +47,10 @@ export abstract class BaseCell {
    */
   destroy(): void {
     if (this._element) {
+      // Clean up any event listeners attached to this element
+      eventManager.cleanupElement(this._element);
       this._element.remove();
+      this._element = undefined;
     }
   }
 }

@@ -10,10 +10,30 @@
  */
 
 import { cursor } from './cursor';
+import { eventManager } from './events';
 import type { CanvasContext } from './types';
 import { viewport } from './viewport';
 import { clearAndRedraw } from './waveform';
 import { setZoom } from './zoom';
+
+// Add event types to events.ts first
+import('./events').then(({ eventManager }) => {
+  // Register for drag events
+  eventManager.on('drag-start', (event) => {
+    // Additional global drag start handling could go here
+    console.debug('Drag started', event);
+  });
+
+  eventManager.on('drag-update', (event) => {
+    // Additional global drag update handling could go here
+    console.debug('Drag updated', event);
+  });
+
+  eventManager.on('drag-end', (event) => {
+    // Additional global drag end handling could go here
+    console.debug('Drag ended', event);
+  });
+});
 
 /**
  * Updates canvas internal resolution to match display size and pixel density.
@@ -219,6 +239,15 @@ export function startDrag(event: MouseEvent, shouldStart: (event: MouseEvent) =>
   dragState.currentX = x;
   dragState.canvas = canvas;
 
+  // Emit drag-start event
+  eventManager.emit({
+    type: 'drag-start',
+    canvas,
+    x,
+    y: event.clientY - rect.top,
+    originalEvent: event,
+  });
+
   return true;
 }
 
@@ -230,7 +259,18 @@ export function updateDrag(event: MouseEvent): DragUpdate | null {
 
   event.preventDefault();
   const rect = dragState.canvas.getBoundingClientRect();
-  dragState.currentX = event.clientX - rect.left;
+  const currentX = event.clientX - rect.left;
+  dragState.currentX = currentX;
+
+  // Emit drag-update event
+  eventManager.emit({
+    type: 'drag-update',
+    canvas: dragState.canvas,
+    startX: dragState.startX,
+    currentX: dragState.currentX,
+    y: event.clientY - rect.top,
+    originalEvent: event,
+  });
 
   return {
     startX: dragState.startX,
@@ -248,11 +288,6 @@ export function endDrag(): DragResult | null {
     dragState.startX === null ||
     dragState.currentX === null
   ) {
-    dragState.active = false;
-    dragState.startX = null;
-    dragState.currentX = null;
-    const _canvas = dragState.canvas;
-    dragState.canvas = null;
     return null;
   }
 
@@ -262,6 +297,15 @@ export function endDrag(): DragResult | null {
     endX: dragState.currentX,
   };
 
+  // Emit drag-end event
+  eventManager.emit({
+    type: 'drag-end',
+    canvas: result.canvas,
+    startX: result.startX,
+    endX: result.endX,
+  });
+
+  // Reset drag state
   dragState.active = false;
   dragState.startX = null;
   dragState.currentX = null;

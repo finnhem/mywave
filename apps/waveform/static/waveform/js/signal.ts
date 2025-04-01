@@ -9,8 +9,9 @@
  * @module signal
  */
 
-import { cursor } from './cursor';
-import type { TimePoint } from './types';
+import { cursor, moveCursorTo } from './cursor';
+import { eventManager } from './events';
+import type { Signal, TimePoint } from './types';
 import { getSignalValueAtTime } from './utils';
 import { clearAndRedraw, drawWaveform } from './waveform';
 
@@ -18,57 +19,30 @@ type EdgeType = 'rising' | 'falling';
 
 /**
  * Activates a signal for cursor operations and updates its visual highlighting.
- * Clears previous activation and redraws affected canvases.
+ * Now uses the event system to notify components about the activation.
  * @param {string} name - Signal name to activate
  * @param {HTMLElement} nameDiv - DOM element containing signal name
  * @param {HTMLCanvasElement} canvas - Canvas element displaying the signal
  */
-export function selectSignal(_name: string, nameDiv: HTMLElement, canvas: HTMLCanvasElement): void {
-  // Clear previous active signal cells
-  const activeNameCells = document.querySelectorAll('.signal-name-cell.cursor-active');
-  for (let i = 0; i < activeNameCells.length; i++) {
-    activeNameCells[i].classList.remove('cursor-active');
-    activeNameCells[i].classList.remove('text-blue-700');
-    activeNameCells[i].classList.remove('font-bold');
-  }
+export function selectSignal(name: string, _nameDiv: HTMLElement, canvas: HTMLCanvasElement): void {
+  // Find the signal data for this canvas
+  const signalData = canvas.signalData;
+  const signal: Signal = {
+    name,
+    data: signalData || [],
+  };
 
-  // Clear previous active signal rows
-  const activeRows = document.querySelectorAll('.cursor-active');
-  for (let i = 0; i < activeRows.length; i++) {
-    if (!activeRows[i].classList.contains('signal-name-cell')) {
-      activeRows[i].classList.remove('cursor-active');
-    }
-  }
+  // Emit signal-activated event instead of directly manipulating DOM
+  eventManager.emit({
+    type: 'signal-activated',
+    signal,
+    active: true,
+  });
 
-  // Clear previous active canvases
-  const activeCanvases = document.querySelectorAll('canvas.cursor-active-canvas');
-  for (let i = 0; i < activeCanvases.length; i++) {
-    activeCanvases[i].classList.remove('cursor-active-canvas');
-    activeCanvases[i].classList.remove('active');
-  }
-
-  // Set new active signal
-  nameDiv.classList.add('cursor-active');
-  nameDiv.classList.add('text-blue-700');
-  nameDiv.classList.add('font-bold');
-  
-  // Add cursor-active to the parent row
-  const row = nameDiv.closest('[data-signal-name]');
-  if (row) {
-    row.classList.add('cursor-active');
-  }
-  
-  canvas.classList.add('cursor-active-canvas');
-  canvas.classList.add('active');
-
-  // Redraw all canvases to update highlighting
-  const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas');
-  for (let i = 0; i < canvases.length; i++) {
-    const c = canvases[i];
-    if (c.id !== 'timeline' && c.signalData) {
-      drawWaveform(c, c.signalData);
-    }
-  }
+  // Request a redraw of all canvases to update highlighting
+  eventManager.emit({
+    type: 'redraw-request',
+  });
 }
 
 /**
@@ -179,8 +153,7 @@ export function moveToNextTransition(): void {
 
   const nextTime = findNextTransition(data, cursor.currentTime);
   if (nextTime !== null) {
-    cursor.currentTime = nextTime;
-    cursor.updateDisplay();
+    moveCursorTo(nextTime);
   }
 }
 
@@ -194,8 +167,7 @@ export function moveToPreviousTransition(): void {
 
   const prevTime = findPreviousTransition(data, cursor.currentTime);
   if (prevTime !== null) {
-    cursor.currentTime = prevTime;
-    cursor.updateDisplay();
+    moveCursorTo(prevTime);
   }
 }
 
@@ -209,8 +181,7 @@ export function findNextRisingEdge(): void {
 
   const nextTime = findNextEdge(data, cursor.currentTime, 'rising');
   if (nextTime !== null) {
-    cursor.currentTime = nextTime;
-    cursor.updateDisplay();
+    moveCursorTo(nextTime);
   }
 }
 
@@ -224,8 +195,7 @@ export function findNextFallingEdge(): void {
 
   const nextTime = findNextEdge(data, cursor.currentTime, 'falling');
   if (nextTime !== null) {
-    cursor.currentTime = nextTime;
-    cursor.updateDisplay();
+    moveCursorTo(nextTime);
   }
 }
 
@@ -239,8 +209,7 @@ export function findPreviousRisingEdge(): void {
 
   const prevTime = findPreviousEdge(data, cursor.currentTime, 'rising');
   if (prevTime !== null) {
-    cursor.currentTime = prevTime;
-    cursor.updateDisplay();
+    moveCursorTo(prevTime);
   }
 }
 
@@ -254,7 +223,6 @@ export function findPreviousFallingEdge(): void {
 
   const prevTime = findPreviousEdge(data, cursor.currentTime, 'falling');
   if (prevTime !== null) {
-    cursor.currentTime = prevTime;
-    cursor.updateDisplay();
+    moveCursorTo(prevTime);
   }
 }
