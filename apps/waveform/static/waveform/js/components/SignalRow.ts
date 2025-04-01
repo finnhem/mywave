@@ -3,18 +3,14 @@
  */
 
 import { handleCanvasClick, moveCursorTo } from '../cursor';
-import { 
-  eventManager, 
-  type CanvasClickEvent, 
-  type SignalActivatedEvent 
-} from '../events';
+import { type CanvasClickEvent, type SignalActivatedEvent, eventManager } from '../events';
 import type { Signal } from '../types';
 import { clearAndRedraw } from '../waveform';
+import { drawWaveform } from '../waveform';
 import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
 import { WaveformCell, canvasDimensionsCache } from './WaveformCell';
-import { drawWaveform } from '../waveform';
 
 interface SignalRowOptions {
   [key: string]: unknown;
@@ -57,11 +53,14 @@ export class SignalRow {
       this.waveformCell.canvas.signalData = this.signal.data;
       this.waveformCell.canvas.valueDisplay = this.valueCell.element;
       this.waveformCell.canvas.signalName = this.signal.name;
-      
+
       // Ensure canvas has dimensions from cache if available
       if (canvasDimensionsCache.has(this.signal.name)) {
         const dims = canvasDimensionsCache.get(this.signal.name);
-        if (dims && (this.waveformCell.canvas.width === 0 || this.waveformCell.canvas.height === 0)) {
+        if (
+          dims &&
+          (this.waveformCell.canvas.width === 0 || this.waveformCell.canvas.height === 0)
+        ) {
           this.waveformCell.canvas.width = dims.width;
           this.waveformCell.canvas.height = dims.height;
           drawWaveform(this.waveformCell.canvas, this.signal.data, this.signal);
@@ -138,7 +137,7 @@ export class SignalRow {
     // If this is our signal and it's being activated, activate this row
     if (event.signal.name === this.signal.name && event.active) {
       this.activate();
-    } 
+    }
     // If this is our signal and it's being deactivated, deactivate this row
     else if (event.signal.name === this.signal.name && !event.active) {
       this.deactivate();
@@ -163,19 +162,19 @@ export class SignalRow {
       // Simply activate this row - the activate method will handle deactivating others
       this.activate();
     });
-    
+
     // Register canvas click handler through the event system
     eventManager.on('canvas-click', (event: CanvasClickEvent) => {
       // Skip internal events to prevent recursion
       if (event._isInternal) {
         return;
       }
-      
+
       // Only handle events for this signal's canvas
       if (event.signalName === this.signal.name) {
         // Handle the canvas click on this row's canvas
         this.activate();
-        
+
         // Update cursor directly with the time from the event
         // instead of calling handleCanvasClick which would emit another event
         moveCursorTo(event.time);
@@ -195,14 +194,14 @@ export class SignalRow {
     if (!this.isActive) {
       this.isActive = true;
       this.element.classList.add('cursor-active');
-      
+
       const nameElement = this.nameCell.element;
       if (nameElement) {
         nameElement.classList.add('cursor-active');
         nameElement.classList.add('text-blue-700');
         nameElement.classList.add('font-bold');
       }
-      
+
       if (this.waveformCell.canvas) {
         this.waveformCell.canvas.classList.add('active');
         this.waveformCell.canvas.classList.add('cursor-active-canvas');
@@ -231,7 +230,7 @@ export class SignalRow {
       type: 'signal-activated',
       signal: this.signal,
       active: true,
-      _isInternal: true
+      _isInternal: true,
     });
   }
 
@@ -242,20 +241,20 @@ export class SignalRow {
     if (this.isActive) {
       this.isActive = false;
       this.element.classList.remove('cursor-active');
-      
+
       const nameElement = this.nameCell.element;
       if (nameElement) {
         nameElement.classList.remove('cursor-active');
         nameElement.classList.remove('text-blue-700');
         nameElement.classList.remove('font-bold');
       }
-      
+
       if (this.waveformCell.canvas) {
         this.waveformCell.canvas.classList.remove('active');
         this.waveformCell.canvas.classList.remove('cursor-active-canvas');
         eventManager.emit({
           type: 'redraw-request',
-          targetCanvas: this.waveformCell.canvas
+          targetCanvas: this.waveformCell.canvas,
         });
       }
 
@@ -270,7 +269,7 @@ export class SignalRow {
         type: 'signal-activated',
         signal: this.signal,
         active: false,
-        _isInternal: true
+        _isInternal: true,
       });
     }
   }
@@ -296,16 +295,16 @@ export class SignalRow {
   destroy(): void {
     // Remove event listeners through event manager
     eventManager.cleanupElement(this.element);
-    
+
     // Remove event listener for global signal activations
     eventManager.off('signal-activated', this.handleGlobalSignalActivation.bind(this));
-    
+
     // Clean up cells
     this.nameCell.destroy();
     this.valueCell.destroy();
     this.radixCell.destroy();
     this.waveformCell.destroy();
-    
+
     // Remove element from DOM
     this.element.remove();
   }

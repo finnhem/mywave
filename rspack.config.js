@@ -3,7 +3,7 @@ const path = require('path');
 /** @type {import('@rspack/cli').Configuration} */
 module.exports = {
   entry: {
-    main: './apps/waveform/static/waveform/js/main.ts',
+    main: './apps/waveform/static/waveform/js/index.ts',
   },
   output: {
     filename: 'bundle.js',

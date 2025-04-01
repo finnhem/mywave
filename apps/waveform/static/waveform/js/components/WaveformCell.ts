@@ -3,12 +3,12 @@
  * @module components/WaveformCell
  */
 
-import { eventManager, type CanvasClickEvent, type RedrawRequestEvent } from '../events';
+import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '../events';
 import type { Signal, TimePoint } from '../types';
+import { viewport } from '../viewport';
 import { drawWaveform } from '../waveform';
 import { initializeZoomHandlers } from '../zoom';
 import { BaseCell } from './BaseCell';
-import { viewport } from '../viewport';
 
 // Keep track of canvas dimensions by signal name
 export const canvasDimensionsCache = new Map<string, { width: number; height: number }>();
@@ -19,10 +19,10 @@ export class WaveformCell extends BaseCell {
   private _mountAttempts = 0;
   private _maxMountAttempts = 5;
   private _resizeObserver: ResizeObserver | null = null;
-  
+
   // Store handler references for cleanup
-  private _canvasClickHandler: any = null;
-  private _redrawHandler: any = null;
+  private _canvasClickHandler: ((event: CanvasClickEvent) => void) | null = null;
+  private _redrawHandler: ((event: RedrawRequestEvent) => void) | null = null;
 
   /**
    * Gets the canvas element
@@ -62,7 +62,8 @@ export class WaveformCell extends BaseCell {
         const rect = this._canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const visibleRange = viewport.getVisibleRange();
-        const time = (x / this._canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
+        const time =
+          (x / this._canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
 
         // Handle canvas click through our unified event system
         eventManager.emit({
@@ -71,7 +72,7 @@ export class WaveformCell extends BaseCell {
           x: x,
           y: event.clientY - rect.top,
           time: time,
-          originalEvent: event
+          originalEvent: event,
         });
       });
 
@@ -81,7 +82,7 @@ export class WaveformCell extends BaseCell {
         if (event._isInternal || event.signalName !== this.signal.name) {
           return;
         }
-        
+
         // Handle the canvas click for this canvas
         this.redrawCanvas();
       };
@@ -102,7 +103,7 @@ export class WaveformCell extends BaseCell {
           this._canvas.width = dimensions.width;
           this._canvas.height = dimensions.height;
           this._hasMounted = true;
-          
+
           // Immediately draw the waveform without delay
           requestAnimationFrame(() => {
             this.redrawCanvas();
@@ -133,7 +134,7 @@ export class WaveformCell extends BaseCell {
               type: 'canvas-resize',
               signalName: this.signal.name,
               width: this._canvas.width,
-              height: this._canvas.height
+              height: this._canvas.height,
             });
 
             // Mark as mounted and draw
@@ -180,7 +181,7 @@ export class WaveformCell extends BaseCell {
     setTimeout(() => {
       if (this._canvas.width > 0 && this._canvas.height > 0) {
         this._hasMounted = true;
-        
+
         // Use requestAnimationFrame to ensure the drawing happens after layout is complete
         requestAnimationFrame(() => {
           this.redrawCanvas();
@@ -201,7 +202,7 @@ export class WaveformCell extends BaseCell {
             this._canvas.width = dimensions.width;
             this._canvas.height = dimensions.height;
             this._hasMounted = true;
-            
+
             // Use requestAnimationFrame to ensure the drawing happens after layout is complete
             requestAnimationFrame(() => {
               this.redrawCanvas();
@@ -218,7 +219,7 @@ export class WaveformCell extends BaseCell {
           this._canvas.width = 1000;
           this._canvas.height = 40;
           this._hasMounted = true;
-          
+
           // Use requestAnimationFrame to ensure the drawing happens after layout is complete
           requestAnimationFrame(() => {
             this.redrawCanvas();
@@ -268,18 +269,18 @@ export class WaveformCell extends BaseCell {
   destroy(): void {
     // Clean up DOM event listeners
     eventManager.cleanupElement(this._canvas);
-    
+
     // Clean up application event listeners
     if (this._redrawHandler) {
       eventManager.off('redraw-request', this._redrawHandler);
       this._redrawHandler = null;
     }
-    
+
     if (this._canvasClickHandler) {
       eventManager.off('canvas-click', this._canvasClickHandler);
       this._canvasClickHandler = null;
     }
-    
+
     // Disconnect any resize observer
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();

@@ -3,7 +3,7 @@
  * @module components/ValueCell
  */
 
-import { eventManager, type CursorTimeChangeEvent, type RadixChangeEvent } from '../events';
+import { type CursorTimeChangeEvent, type RadixChangeEvent, eventManager } from '../events';
 import { formatSignalValue } from '../radix';
 import { Signal } from '../types';
 import { getSignalValueAtTime } from '../utils';
@@ -11,8 +11,11 @@ import { BaseCell } from './BaseCell';
 
 export class ValueCell extends BaseCell {
   private textSpan!: HTMLSpanElement;
-  private eventHandlers: Array<{type: string, handler: any}> = [];
-  private currentTime: number = 0;
+  private eventHandlers: Array<{
+    type: string;
+    handler: (event: CursorTimeChangeEvent | RadixChangeEvent) => void;
+  }> = [];
+  private currentTime = 0;
 
   /**
    * Creates the DOM element for the value cell
@@ -34,7 +37,7 @@ export class ValueCell extends BaseCell {
       this.updateValue();
     };
     eventManager.on('cursor-time-change', cursorTimeHandler);
-    this.eventHandlers.push({type: 'cursor-time-change', handler: cursorTimeHandler});
+    this.eventHandlers.push({ type: 'cursor-time-change', handler: cursorTimeHandler });
 
     // Subscribe to radix change events for this signal
     const radixChangeHandler = (event: RadixChangeEvent) => {
@@ -43,7 +46,7 @@ export class ValueCell extends BaseCell {
       }
     };
     eventManager.on('radix-change', radixChangeHandler);
-    this.eventHandlers.push({type: 'radix-change', handler: radixChangeHandler});
+    this.eventHandlers.push({ type: 'radix-change', handler: radixChangeHandler });
 
     // Initial update
     this.updateValue();
@@ -79,11 +82,11 @@ export class ValueCell extends BaseCell {
    */
   destroy(): void {
     // Remove all event listeners
-    this.eventHandlers.forEach(handler => {
+    for (const handler of this.eventHandlers) {
       eventManager.off(handler.type, handler.handler);
-    });
+    }
     this.eventHandlers = [];
-    
+
     // Call parent destroy method
     super.destroy();
   }
