@@ -6,7 +6,7 @@
  * @module utils
  */
 
-import { TimePoint } from './types';
+import type { TimePoint } from './types';
 
 /**
  * Gets the value of a signal at a specific time point.
@@ -15,43 +15,46 @@ import { TimePoint } from './types';
  * @returns {string} The signal value at the given time
  */
 export function getSignalValueAtTime(data: TimePoint[], time: number): string {
-    if (!data || data.length === 0) return 'no data';
-    
-    // Find the last value before or at the given time
-    for (let i = data.length - 1; i >= 0; i--) {
-        if (data[i].time <= time) {
-            return data[i].value;
-        }
+  if (!data || data.length === 0) return 'no data';
+
+  // Find the last value before or at the given time
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i].time <= time) {
+      return data[i].value;
     }
-    
-    return data[0].value; // Return first value if time is before all data points
+  }
+
+  return data[0].value; // Return first value if time is before all data points
 }
 
 /**
- * Formats a time value according to the current timescale.
- * Time values are assumed to be in nanoseconds.
- * @param {number} timeInNs - Time value in nanoseconds
- * @returns {string} Formatted time value with appropriate unit
+ * Format a time value in nanoseconds to the most appropriate time unit
+ * @param {number} timeInNs - Time in nanoseconds
+ * @returns {string} Formatted time string with appropriate unit
  */
 export function formatTime(timeInNs: number): string {
-    if (typeof timeInNs !== 'number' || isNaN(timeInNs)) return '0.0ns';
-    
-    // Choose appropriate unit based on magnitude
-    if (timeInNs === 0) {
-        return '0.0ns';
-    } else if (timeInNs >= 1e9) {
-        return `${(timeInNs / 1e9).toFixed(1)}s`;
-    } else if (timeInNs >= 1e6) {
-        return `${(timeInNs / 1e6).toFixed(1)}ms`;
-    } else if (timeInNs >= 1e3) {
-        return `${(timeInNs / 1e3).toFixed(1)}µs`;
-    } else if (timeInNs >= 1) {
-        return `${timeInNs.toFixed(1)}ns`;
-    } else if (timeInNs >= 0.001) {
-        return `${(timeInNs * 1e3).toFixed(1)}ps`;
-    } else {
-        return `${(timeInNs * 1e6).toFixed(1)}fs`;
-    }
+  if (typeof timeInNs !== 'number' || Number.isNaN(timeInNs)) return '0.0ns';
+
+  // Choose appropriate unit based on magnitude
+  if (timeInNs === 0) {
+    return '0.0ns';
+  }
+  if (timeInNs >= 1e9) {
+    return `${(timeInNs / 1e9).toFixed(1)}s`;
+  }
+  if (timeInNs >= 1e6) {
+    return `${(timeInNs / 1e6).toFixed(1)}ms`;
+  }
+  if (timeInNs >= 1e3) {
+    return `${(timeInNs / 1e3).toFixed(1)}µs`;
+  }
+  if (timeInNs >= 1) {
+    return `${timeInNs.toFixed(1)}ns`;
+  }
+  if (timeInNs >= 0.001) {
+    return `${(timeInNs * 1e3).toFixed(1)}ps`;
+  }
+  return `${(timeInNs * 1e6).toFixed(1)}fs`;
 }
 
 /**
@@ -61,56 +64,58 @@ export function formatTime(timeInNs: number): string {
  * @returns {string} Hexadecimal representation
  */
 export function binToHex(value: string): string {
-    // Handle special values
-    if (value === 'x' || value === 'X') return 'x';
-    if (value === 'z' || value === 'Z') return 'z';
-    
-    // Remove 'b' prefix if present
-    const binStr = value.startsWith('b') ? value.slice(1) : value;
-    
-    // Handle single bit values
-    if (binStr === '0' || binStr === '1') return binStr;
-    
-    // Convert binary string to hex
-    // Pad with zeros to make length multiple of 4
-    const padded = binStr.padStart(Math.ceil(binStr.length / 4) * 4, '0');
-    let hex = '';
-    
-    // Convert each group of 4 bits to hex
-    for (let i = 0; i < padded.length; i += 4) {
-        const chunk = padded.slice(i, i + 4);
-        const hexDigit = parseInt(chunk, 2).toString(16);
-        hex += hexDigit;
-    }
-    
-    return hex;
+  // Handle special values
+  if (value === 'x' || value === 'X') return 'x';
+  if (value === 'z' || value === 'Z') return 'z';
+
+  // Remove 'b' prefix if present
+  const binStr = value.startsWith('b') ? value.slice(1) : value;
+
+  // Handle single bit values
+  if (binStr === '0' || binStr === '1') return binStr;
+
+  // Convert binary string to hex
+  // Pad with zeros to make length multiple of 4
+  const padded = binStr.padStart(Math.ceil(binStr.length / 4) * 4, '0');
+  let hex = '';
+
+  // Convert each group of 4 bits to hex
+  for (let i = 0; i < padded.length; i += 4) {
+    const chunk = padded.slice(i, i + 4);
+    const hexDigit = Number.parseInt(chunk, 2).toString(16);
+    hex += hexDigit;
+  }
+
+  return hex;
 }
 
 /**
- * Converts a hexadecimal string to binary.
- * Handles special values (x, z) and maintains full bit width.
- * @param {string} value - Hex value to convert
- * @param {number} [bitWidth] - Optional bit width for proper padding
- * @returns {string} Binary representation with 'b' prefix
+ * Converts hex string to binary string
+ * @param {string} hex - Hex string (without 0x prefix)
+ * @param {number} [width] - Optional target bit width
+ * @returns {string} Binary string (with b prefix)
  */
-export function hexToBin(value: string, bitWidth?: number): string {
-    // Handle special values
-    if (value === 'x' || value === 'X') return 'x';
-    if (value === 'z' || value === 'Z') return 'z';
-    
-    // Convert each hex digit to 4 bits
-    let binary = '';
-    for (const digit of value) {
-        const bits = parseInt(digit, 16).toString(2).padStart(4, '0');
-        binary += bits;
-    }
-    
-    // Always pad to the specified bit width if provided
-    if (bitWidth) {
-        binary = binary.padStart(bitWidth, '0');
-    }
-    
-    return 'b' + binary;
+export function hexToBin(hex: string, width?: number): string {
+  let binary = '';
+
+  for (let i = 0; i < hex.length; i++) {
+    const digit = Number.parseInt(hex[i], 16);
+
+    // Convert hex digit to 4-bit binary
+    let bits = digit.toString(2);
+
+    // Pad to 4 bits
+    bits = bits.padStart(4, '0');
+
+    binary += bits;
+  }
+
+  // Pad to desired width if specified
+  if (width && binary.length < width) {
+    binary = binary.padStart(width, '0');
+  }
+
+  return `b${binary}`;
 }
 
 /**
@@ -120,56 +125,56 @@ export function hexToBin(value: string, bitWidth?: number): string {
  * @returns Nearest data point or null if data is empty
  */
 export function findNearestPoint(data: TimePoint[], time: number): TimePoint | null {
-    if (!data || data.length === 0) return null;
+  if (!data || data.length === 0) return null;
 
-    let left = 0;
-    let right = data.length - 1;
+  let left = 0;
+  let right = data.length - 1;
 
-    while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const midTime = data[mid].time;
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const midTime = data[mid].time;
 
-        if (midTime === time) {
-            return data[mid];
-        }
-
-        if (midTime < time) {
-            left = mid + 1;
-        } else {
-            right = mid - 1;
-        }
+    if (midTime === time) {
+      return data[mid];
     }
 
-    // At this point, right points to the largest value <= time
-    // and left points to the smallest value > time
-    if (right < 0) return data[0];
-    if (left >= data.length) return data[data.length - 1];
+    if (midTime < time) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
 
-    const leftDiff = Math.abs(time - data[right].time);
-    const rightDiff = Math.abs(data[left].time - time);
+  // At this point, right points to the largest value <= time
+  // and left points to the smallest value > time
+  if (right < 0) return data[0];
+  if (left >= data.length) return data[data.length - 1];
 
-    return leftDiff <= rightDiff ? data[right] : data[left];
+  const leftDiff = Math.abs(time - data[right].time);
+  const rightDiff = Math.abs(data[left].time - time);
+
+  return leftDiff <= rightDiff ? data[right] : data[left];
 }
 
 /**
- * Debounces a function call
- * @param func - Function to debounce
- * @param wait - Wait time in milliseconds
+ * Creates a debounced function that delays invoking func until after wait milliseconds
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds
  * @returns Debounced function
  */
-export function debounce<T extends (...args: any[]) => void>(
-    func: T,
-    wait: number
+export function debounce<T extends (...args: unknown[]) => void>(
+  func: T,
+  wait: number
 ): (...args: Parameters<T>) => void {
-    let timeout: number | undefined;
+  let timeout: number | undefined;
 
-    return function(this: any, ...args: Parameters<T>): void {
-        const later = () => {
-            timeout = undefined;
-            func.apply(this, args);
-        };
-
-        if (timeout !== undefined) window.clearTimeout(timeout);
-        timeout = window.setTimeout(later, wait);
+  return function (this: unknown, ...args: Parameters<T>): void {
+    const later = () => {
+      timeout = undefined;
+      func.apply(this, args);
     };
-} 
+
+    clearTimeout(timeout);
+    timeout = window.setTimeout(later, wait);
+  };
+}

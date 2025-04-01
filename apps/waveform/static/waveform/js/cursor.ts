@@ -1,51 +1,65 @@
 import { timeToCanvasX } from './canvas';
-import { viewport } from './viewport';
-import { clearAndRedraw } from './waveform';
-import { getSignalValueAtTime } from './utils';
 import { formatSignalValue } from './radix';
 import type { CursorState, TimePoint } from './types';
+import { getSignalValueAtTime } from './utils';
+import { viewport } from './viewport';
+import { clearAndRedraw } from './waveform';
 
 /**
- * Updates all value displays with current cursor time
+ * Updates value displays for all signals based on cursor position
  */
-export function updateValueDisplays(): void {
-    // Update value displays for all signals
-    const signalRows = document.querySelectorAll<HTMLElement>('[data-signal-name]');
-    signalRows.forEach(row => {
-        const valueCell = row.querySelector('.value-display');
-        const canvas = row.querySelector('canvas') as HTMLCanvasElement;
-        if (valueCell && canvas && canvas.signalData) {
-            const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
-            const signalName = row.dataset.signalName || '';
-            const formattedValue = formatSignalValue(value, signalName);
-            const valueSpan = valueCell.querySelector('span');
-            if (valueSpan) {
-                valueSpan.textContent = formattedValue;
-            }
-        }
-    });
+function updateValueDisplays(): void {
+  // Update value displays for all signals
+  const signalRows = document.querySelectorAll<HTMLElement>('[data-signal-name]');
+  for (let i = 0; i < signalRows.length; i++) {
+    const row = signalRows[i];
+    const valueCell = row.querySelector('.value-display');
+    const signalName = row.getAttribute('data-signal-name');
 
-    // Update cursor time display
-    const cursorTimeDisplay = document.getElementById('cursor-time');
-    if (cursorTimeDisplay) {
-        cursorTimeDisplay.textContent = `Cursor Time: ${cursor.currentTime.toFixed(2)} ns`;
+    if (valueCell && signalName) {
+      // Find the corresponding canvas
+      const canvas = document.querySelector(
+        `canvas[data-signal-name="${signalName}"]`
+      ) as HTMLCanvasElement;
+      if (canvas?.signalData) {
+        // Get signal value at cursor time
+        const value = getSignalValueAtTime(canvas.signalData, cursor.currentTime);
+
+        // Update display with formatted value according to preference
+        const formattedValue = formatSignalValue(value, signalName);
+
+        // Update the valueCell's span (if it exists) or fallback to updating the valueCell directly
+        const valueSpan = valueCell.querySelector('span');
+        if (valueSpan) {
+          valueSpan.textContent = formattedValue;
+        } else {
+          valueCell.textContent = formattedValue;
+        }
+      }
     }
+  }
+
+  // Update cursor time display
+  const cursorTimeDisplay = document.getElementById('cursor-time');
+  if (cursorTimeDisplay) {
+    cursorTimeDisplay.textContent = `Cursor Time: ${cursor.currentTime.toFixed(2)} ns`;
+  }
 }
 
 /**
- * Global cursor state for tracking time position across waveforms
+ * Global cursor state object
  */
 export const cursor: CursorState = {
-    currentTime: 0,
-    startTime: 0,
-    endTime: 0,
-    canvases: [],
-    updateDisplay() {
-        this.canvases.forEach(canvas => {
-            clearAndRedraw(canvas);
-        });
-        updateValueDisplays();
+  currentTime: 0,
+  startTime: 0,
+  endTime: 0,
+  canvases: [],
+  updateDisplay() {
+    for (const canvas of this.canvases) {
+      clearAndRedraw(canvas);
     }
+    updateValueDisplays();
+  },
 };
 
 /**
@@ -53,18 +67,18 @@ export const cursor: CursorState = {
  * @param event - Mouse click event
  */
 export function handleCanvasClick(event: MouseEvent): void {
-    const canvas = event.target as HTMLCanvasElement;
-    if (!canvas) return;
+  const canvas = event.target as HTMLCanvasElement;
+  if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const visibleRange = viewport.getVisibleRange();
-    
-    // Convert x position to time value
-    const time = (x / canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
-    
-    // Update cursor position and display
-    moveCursorTo(time);
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const visibleRange = viewport.getVisibleRange();
+
+  // Convert x position to time value
+  const time = (x / canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
+
+  // Update cursor position and display
+  moveCursorTo(time);
 }
 
 /**
@@ -72,23 +86,22 @@ export function handleCanvasClick(event: MouseEvent): void {
  * @param time - Target time value
  */
 export function moveCursorTo(time: number): void {
-    cursor.currentTime = Math.max(cursor.startTime, Math.min(cursor.endTime, time));
-    cursor.updateDisplay();
-    updateValueDisplays();
+  cursor.currentTime = Math.max(cursor.startTime, Math.min(cursor.endTime, time));
+  cursor.updateDisplay();
 }
 
 /**
  * Moves cursor to the start of the time range
  */
 export function moveCursorToStart(): void {
-    moveCursorTo(cursor.startTime);
+  moveCursorTo(cursor.startTime);
 }
 
 /**
  * Moves cursor to the end of the time range
  */
 export function moveCursorToEnd(): void {
-    moveCursorTo(cursor.endTime);
+  moveCursorTo(cursor.endTime);
 }
 
 /**
@@ -97,6 +110,6 @@ export function moveCursorToEnd(): void {
  * @returns X coordinate of cursor position
  */
 export function getCursorX(canvas: HTMLCanvasElement): number {
-    const visibleRange = viewport.getVisibleRange();
-    return timeToCanvasX(cursor.currentTime, visibleRange.start, visibleRange.end, canvas.width);
-} 
+  const visibleRange = viewport.getVisibleRange();
+  return timeToCanvasX(cursor.currentTime, visibleRange.start, visibleRange.end, canvas.width);
+}
