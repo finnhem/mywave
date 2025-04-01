@@ -10,6 +10,7 @@ import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
 import { WaveformCell, canvasDimensionsCache } from './WaveformCell';
+import { drawWaveform } from '../waveform';
 
 interface SignalRowOptions {
   [key: string]: unknown;
@@ -53,6 +54,16 @@ export class SignalRow {
       this.waveformCell.canvas.signalData = this.signal.data;
       this.waveformCell.canvas.valueDisplay = this.valueCell.element;
       this.waveformCell.canvas.signalName = this.signal.name;
+      
+      // Ensure canvas has dimensions from cache if available
+      if (canvasDimensionsCache.has(this.signal.name)) {
+        const dims = canvasDimensionsCache.get(this.signal.name);
+        if (dims && (this.waveformCell.canvas.width === 0 || this.waveformCell.canvas.height === 0)) {
+          this.waveformCell.canvas.width = dims.width;
+          this.waveformCell.canvas.height = dims.height;
+          drawWaveform(this.waveformCell.canvas, this.signal.data, this.signal);
+        }
+      }
     }
 
     // Check if this row should be active (matches the active signal name)

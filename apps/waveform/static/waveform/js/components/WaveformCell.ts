@@ -63,7 +63,11 @@ export class WaveformCell extends BaseCell {
           this._canvas.width = dimensions.width;
           this._canvas.height = dimensions.height;
           this._hasMounted = true;
-          drawWaveform(this._canvas, this.signal.data, this.signal);
+          
+          // Immediately draw the waveform without delay
+          requestAnimationFrame(() => {
+            drawWaveform(this._canvas, this.signal.data, this.signal);
+          });
         }
       }
 
@@ -119,7 +123,11 @@ export class WaveformCell extends BaseCell {
     setTimeout(() => {
       if (this._canvas.width > 0 && this._canvas.height > 0) {
         this._hasMounted = true;
-        drawWaveform(this._canvas, this.signal.data, this.signal);
+        
+        // Use requestAnimationFrame to ensure the drawing happens after layout is complete
+        requestAnimationFrame(() => {
+          drawWaveform(this._canvas, this.signal.data, this.signal);
+        });
 
         // Store dimensions for future reference
         canvasDimensionsCache.set(this.signal.name, {
@@ -136,7 +144,11 @@ export class WaveformCell extends BaseCell {
             this._canvas.width = dimensions.width;
             this._canvas.height = dimensions.height;
             this._hasMounted = true;
-            drawWaveform(this._canvas, this.signal.data, this.signal);
+            
+            // Use requestAnimationFrame to ensure the drawing happens after layout is complete
+            requestAnimationFrame(() => {
+              drawWaveform(this._canvas, this.signal.data, this.signal);
+            });
             return;
           }
         }
@@ -149,7 +161,11 @@ export class WaveformCell extends BaseCell {
           this._canvas.width = 1000;
           this._canvas.height = 40;
           this._hasMounted = true;
-          drawWaveform(this._canvas, this.signal.data, this.signal);
+          
+          // Use requestAnimationFrame to ensure the drawing happens after layout is complete
+          requestAnimationFrame(() => {
+            drawWaveform(this._canvas, this.signal.data, this.signal);
+          });
         }
       }
     }, delay);
@@ -182,7 +198,10 @@ export class WaveformCell extends BaseCell {
     }
 
     if (this._hasMounted && this.signal.data && this.signal.data.length > 0) {
-      drawWaveform(this._canvas, this.signal.data, this.signal);
+      // Use requestAnimationFrame to ensure drawing happens after the layout is complete
+      requestAnimationFrame(() => {
+        drawWaveform(this._canvas, this.signal.data, this.signal);
+      });
     }
   }
 

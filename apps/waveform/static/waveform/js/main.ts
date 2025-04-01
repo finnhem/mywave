@@ -89,6 +89,9 @@ function updateDisplayedSignals(): void {
   // Get all visible signals
   const visibleSignals = collectVisibleSignals(signalTree.hierarchyRoot);
   
+  // Store active signal name before clearing the container
+  const activeSignalName = SignalRow.activeSignalName;
+  
   // Clear the container
   container.innerHTML = '';
   
@@ -102,9 +105,40 @@ function updateDisplayedSignals(): void {
   const signalCanvases = document.querySelectorAll<HTMLCanvasElement>(
     '.waveform-canvas-container canvas'
   );
+  
+  // Ensure each canvas has dimensions and signal data set properly
   for (let i = 0; i < signalCanvases.length; i++) {
     const canvas = signalCanvases[i];
     if (canvas.id !== 'timeline') {
+      // Make sure dimensions are set from cache if available
+      const signalName = canvas.getAttribute('data-signal-name');
+      if (signalName && canvasDimensionsCache.has(signalName)) {
+        const dimensions = canvasDimensionsCache.get(signalName);
+        if (dimensions && (canvas.width === 0 || canvas.height === 0)) {
+          canvas.width = dimensions.width;
+          canvas.height = dimensions.height;
+        }
+      }
+      
+      // Make sure we have a valid height and width for drawing
+      if (canvas.width === 0 || canvas.height === 0) {
+        canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+        canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+        
+        // Store dimensions in cache
+        if (signalName) {
+          canvasDimensionsCache.set(signalName, {
+            width: canvas.width,
+            height: canvas.height
+          });
+        }
+      }
+      
+      // Draw the waveform if canvas has valid dimensions
+      if (canvas.width > 0 && canvas.height > 0 && canvas.signalData) {
+        drawWaveform(canvas, canvas.signalData, canvas.signal);
+      }
+      
       initializeZoomHandlers(canvas);
     }
   }
