@@ -2,7 +2,7 @@
  * Base cell component that provides common functionality for all cells
  */
 
-import { eventManager } from '../events';
+import { eventManager } from '../services/events';
 import type { Signal } from '../types';
 
 export abstract class BaseCell {

@@ -2,11 +2,11 @@
  * SignalRow component that manages the display of a single signal
  */
 
-import { handleCanvasClick, moveCursorTo } from '../cursor';
-import { type CanvasClickEvent, type SignalActivatedEvent, eventManager } from '../events';
+import { cursor } from '../core/cursor';
+import { eventManager } from '../services/events';
 import type { Signal } from '../types';
-import { clearAndRedraw } from '../waveform';
-import { drawWaveform } from '../waveform';
+import { clearAndRedraw } from '../ui/waveform';
+import { drawWaveform } from '../ui/waveform';
 import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
@@ -97,7 +97,7 @@ export class SignalRow {
     }
 
     // Listen for signal activation events
-    eventManager.on('signal-activated', this.handleGlobalSignalActivation.bind(this));
+    eventManager.on('signal-select', this.handleGlobalSignalActivation.bind(this));
   }
 
   /**
@@ -128,7 +128,7 @@ export class SignalRow {
   /**
    * Handles global signal activation events
    */
-  private handleGlobalSignalActivation(event: SignalActivatedEvent): void {
+  private handleGlobalSignalActivation(event: any): void {
     // Skip responding to events that we just emitted ourselves to prevent infinite recursion
     if (event._isInternal) {
       return;
@@ -164,7 +164,7 @@ export class SignalRow {
     });
 
     // Register canvas click handler through the event system
-    eventManager.on('canvas-click', (event: CanvasClickEvent) => {
+    eventManager.on('canvas-click', (event: any) => {
       // Skip internal events to prevent recursion
       if (event._isInternal) {
         return;
@@ -176,8 +176,7 @@ export class SignalRow {
         this.activate();
 
         // Update cursor directly with the time from the event
-        // instead of calling handleCanvasClick which would emit another event
-        moveCursorTo(event.time);
+        cursor.setTime(event.time);
       }
     });
   }
@@ -225,12 +224,10 @@ export class SignalRow {
       });
     }
 
-    // Emit selection event using the new event system with internal flag
+    // Emit signal select event
     eventManager.emit({
-      type: 'signal-activated',
-      signal: this.signal,
-      active: true,
-      _isInternal: true,
+      type: 'signal-select',
+      signalName: this.signal.name,
     });
   }
 
@@ -290,22 +287,26 @@ export class SignalRow {
   }
 
   /**
-   * Clean up resources
+   * Cleans up resources used by the row
    */
   destroy(): void {
-    // Remove event listeners through event manager
-    eventManager.cleanupElement(this.element);
-
-    // Remove event listener for global signal activations
-    eventManager.off('signal-activated', this.handleGlobalSignalActivation.bind(this));
-
-    // Clean up cells
+    // Unregister from event system
+    eventManager.off('signal-select', this.handleGlobalSignalActivation.bind(this));
+    
+    // Cleanup DOM event listeners
+    if (this.element) {
+      eventManager.cleanupElement(this.element);
+    }
+    
+    // Destroy child components
     this.nameCell.destroy();
     this.valueCell.destroy();
     this.radixCell.destroy();
     this.waveformCell.destroy();
-
-    // Remove element from DOM
-    this.element.remove();
+    
+    // Remove from DOM
+    if (this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
+    }
   }
 }

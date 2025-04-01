@@ -3,11 +3,11 @@
  * @module components/WaveformCell
  */
 
-import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '../events';
+import { type RedrawRequestEvent, eventManager } from '../services/events';
 import type { Signal, TimePoint } from '../types';
-import { viewport } from '../viewport';
-import { drawWaveform } from '../waveform';
-import { initializeZoomHandlers } from '../zoom';
+import { viewport } from '../core/viewport';
+import { drawWaveform } from '../ui/waveform';
+import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
 
 // Keep track of canvas dimensions by signal name
@@ -21,7 +21,7 @@ export class WaveformCell extends BaseCell {
   private _resizeObserver: ResizeObserver | null = null;
 
   // Store handler references for cleanup
-  private _canvasClickHandler: ((event: CanvasClickEvent) => void) | null = null;
+  private _canvasClickHandler: ((event: any) => void) | null = null;
   private _redrawHandler: ((event: RedrawRequestEvent) => void) | null = null;
 
   /**
@@ -50,17 +50,18 @@ export class WaveformCell extends BaseCell {
 
     // Set up event handlers if signal has data
     if (this.signal.data && this.signal.data.length > 0) {
-      // Initialize zoom handlers (which includes wheel events)
-      initializeZoomHandlers(this._canvas);
+      // Initialize zoom handler
+      this.initializeZoomHandler(this._canvas);
 
       // Add canvas click handler through event manager
-      eventManager.addDOMListener(this._canvas, 'click', (event) => {
+      eventManager.addDOMListener(this._canvas, 'click', (event: Event) => {
+        const mouseEvent = event as MouseEvent;
         // Prevent event from bubbling to parent elements
-        event.stopPropagation();
+        mouseEvent.stopPropagation();
 
         // Calculate time based on x position (similar to handleCanvasClick)
         const rect = this._canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
+        const x = mouseEvent.clientX - rect.left;
         const visibleRange = viewport.getVisibleRange();
         const time =
           (x / this._canvas.width) * (visibleRange.end - visibleRange.start) + visibleRange.start;
@@ -70,14 +71,14 @@ export class WaveformCell extends BaseCell {
           type: 'canvas-click',
           signalName: this.signal.name,
           x: x,
-          y: event.clientY - rect.top,
+          y: mouseEvent.clientY - rect.top,
           time: time,
-          originalEvent: event,
+          originalEvent: mouseEvent,
         });
       });
 
       // Set up handlers for application events
-      this._canvasClickHandler = (event: CanvasClickEvent) => {
+      this._canvasClickHandler = (event: any) => {
         // Skip internal events to prevent recursion
         if (event._isInternal || event.signalName !== this.signal.name) {
           return;
@@ -131,10 +132,8 @@ export class WaveformCell extends BaseCell {
 
             // Emit canvas resize event
             eventManager.emit({
-              type: 'canvas-resize',
-              signalName: this.signal.name,
-              width: this._canvas.width,
-              height: this._canvas.height,
+              type: 'redraw-request',
+              targetCanvas: this._canvas
             });
 
             // Mark as mounted and draw
@@ -163,6 +162,37 @@ export class WaveformCell extends BaseCell {
 
     cell.appendChild(this._canvas);
     return cell;
+  }
+
+  /**
+   * Initializes zoom handler for a canvas element
+   * @param canvas - Canvas element to attach zoom handlers to
+   */
+  private initializeZoomHandler(canvas: HTMLCanvasElement): void {
+    // Add wheel event handler for zooming
+    eventManager.addDOMListener(canvas, 'wheel', (event: Event) => {
+      const wheelEvent = event as WheelEvent;
+      // Prevent default scrolling behavior
+      wheelEvent.preventDefault();
+      
+      // Get canvas dimensions
+      const rect = canvas.getBoundingClientRect();
+      
+      // Calculate relative position of the cursor within the canvas
+      const x = wheelEvent.clientX - rect.left;
+      const xRatio = x / rect.width;
+      
+      // Calculate the time point under the cursor
+      const visibleRange = viewport.getVisibleRange();
+      const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
+      
+      // Calculate new zoom level based on wheel delta
+      const currentZoom = viewport.zoomLevel;
+      const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
+      
+      // Apply zoom centered on the cursor position
+      viewport.setZoom(newZoom, centerTime);
+    });
   }
 
   /**
@@ -264,29 +294,32 @@ export class WaveformCell extends BaseCell {
   }
 
   /**
-   * Clean up resources
+   * Clean up resources when cell is destroyed
    */
   destroy(): void {
-    // Clean up DOM event listeners
-    eventManager.cleanupElement(this._canvas);
-
-    // Clean up application event listeners
-    if (this._redrawHandler) {
-      eventManager.off('redraw-request', this._redrawHandler);
-      this._redrawHandler = null;
-    }
-
-    if (this._canvasClickHandler) {
-      eventManager.off('canvas-click', this._canvasClickHandler);
-      this._canvasClickHandler = null;
-    }
-
-    // Disconnect any resize observer
+    // Stop observing canvas if still active
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
     }
 
+    // Remove event listeners
+    if (this._canvas) {
+      eventManager.cleanupElement(this._canvas);
+    }
+
+    // Unregister application events
+    if (this._canvasClickHandler) {
+      eventManager.off('canvas-click', this._canvasClickHandler);
+      this._canvasClickHandler = null;
+    }
+
+    if (this._redrawHandler) {
+      eventManager.off('redraw-request', this._redrawHandler);
+      this._redrawHandler = null;
+    }
+
+    // Call parent destroy method
     super.destroy();
   }
 }

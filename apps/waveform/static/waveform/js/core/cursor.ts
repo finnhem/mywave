@@ -129,3 +129,20 @@ class CursorManager implements CursorState {
 
 // Export singleton instance
 export const cursor = new CursorManager();
+
+/**
+ * Utility function to handle canvas click and update cursor position
+ * @param canvas - Canvas that was clicked
+ * @param clientX - Client X coordinate of the click
+ */
+export function handleCanvasClick(canvas: HTMLCanvasElement, clientX: number): void {
+  cursor.handleCanvasClick(canvas, clientX);
+}
+
+/**
+ * Utility function to move cursor to a specific time
+ * @param time - Time to move the cursor to
+ */
+export function moveCursorTo(time: number): void {
+  cursor.setTime(time);
+}

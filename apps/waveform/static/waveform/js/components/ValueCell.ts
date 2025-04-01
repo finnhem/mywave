@@ -3,18 +3,15 @@
  * @module components/ValueCell
  */
 
-import { type CursorTimeChangeEvent, type RadixChangeEvent, eventManager } from '../events';
-import { formatSignalValue } from '../radix';
-import { Signal } from '../types';
-import { getSignalValueAtTime } from '../utils';
+import { type CursorChangeEvent, type CursorTimeChangeEvent, type RadixChangeEvent, eventManager } from '../services/events';
+import { formatSignalValue } from '../services/radix';
+import { Signal, TimePoint } from '../types';
+import { getSignalValueAtTime } from '../utils/format';
 import { BaseCell } from './BaseCell';
 
 export class ValueCell extends BaseCell {
   private textSpan!: HTMLSpanElement;
-  private eventHandlers: Array<{
-    type: string;
-    handler: (event: CursorTimeChangeEvent | RadixChangeEvent) => void;
-  }> = [];
+  private eventHandlers: { type: string; handler: any }[] = [];
   private currentTime = 0;
 
   /**
@@ -31,13 +28,15 @@ export class ValueCell extends BaseCell {
 
     cell.appendChild(this.textSpan);
 
-    // Subscribe to cursor time change events to update the value display
-    const cursorTimeHandler = (event: CursorTimeChangeEvent) => {
+    // Handle cursor change events
+    const cursorChangeHandler = (event: CursorChangeEvent) => {
       this.currentTime = event.time;
       this.updateValue();
     };
-    eventManager.on('cursor-time-change', cursorTimeHandler);
-    this.eventHandlers.push({ type: 'cursor-time-change', handler: cursorTimeHandler });
+    
+    // Register the handler
+    eventManager.on('cursor-change', cursorChangeHandler);
+    this.eventHandlers.push({ type: 'cursor-change', handler: cursorChangeHandler });
 
     // Subscribe to radix change events for this signal
     const radixChangeHandler = (event: RadixChangeEvent) => {
@@ -69,9 +68,22 @@ export class ValueCell extends BaseCell {
    * Updates the displayed value using the current cursor time
    */
   private updateValue(): void {
-    if (this.signal.data && this.signal.data.length > 0) {
-      const value = getSignalValueAtTime(this.signal.data, this.currentTime);
-      this.textSpan.textContent = formatSignalValue(value, this.signal.name);
+    if (this.signal && this.signal.data && this.signal.data.length > 0) {
+      try {
+        // Get the value at the current time
+        const value = getSignalValueAtTime(this.signal, this.currentTime);
+        
+        if (value !== undefined) {
+          // Format the value based on the signal's radix preference
+          // Pass the signal object itself, not just the name
+          this.textSpan.textContent = formatSignalValue(value, this.signal);
+        } else {
+          this.textSpan.textContent = '--';
+        }
+      } catch (error) {
+        console.error('Error updating value:', error);
+        this.textSpan.textContent = '--';
+      }
     } else {
       this.textSpan.textContent = '--';
     }
@@ -83,7 +95,7 @@ export class ValueCell extends BaseCell {
   destroy(): void {
     // Remove all event listeners
     for (const handler of this.eventHandlers) {
-      eventManager.off(handler.type, handler.handler);
+      eventManager.off(handler.type as any, handler.handler);
     }
     this.eventHandlers = [];
 

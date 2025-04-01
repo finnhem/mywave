@@ -1,6 +1,5 @@
 /**
- * Utility functions index module.
- * Re-exports all utility functions for easier imports.
+ * Utility functions for waveform display.
  * @module utils
  */
 
@@ -8,13 +7,15 @@
 export { formatTime } from './time';
 
 // Re-export format utilities
-export {
-  getSignalValueAtTime,
+export { 
   normalizeBinaryValue,
   binaryToHex,
   binaryToDecimal,
-  binaryToAscii,
+  binaryToAscii
 } from './format';
+
+// Re-export signal value utility
+export { getSignalValueAtTime } from './format';
 
 // Re-export zoom utilities
 export {

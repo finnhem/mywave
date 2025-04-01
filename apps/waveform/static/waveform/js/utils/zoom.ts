@@ -5,6 +5,8 @@
  */
 
 import type { TimePoint } from '../types';
+import { eventManager } from '../services/events';
+import { viewport } from '../core/viewport';
 
 /**
  * Calculates the minimum time delta between consecutive time points.
@@ -70,4 +72,35 @@ export function calculateWheelZoom(currentZoom: number, delta: number): number {
     return currentZoom * zoomFactor;
   }
   return currentZoom / zoomFactor;
+}
+
+/**
+ * Initializes zoom handlers for a canvas element
+ * @param canvas - Canvas element to attach zoom handlers to
+ */
+export function initializeZoomHandlers(canvas: HTMLCanvasElement): void {
+  // Add wheel event handler for zooming
+  eventManager.addDOMListener(canvas, 'wheel', (event: Event) => {
+    const wheelEvent = event as WheelEvent;
+    // Prevent default scrolling behavior
+    wheelEvent.preventDefault();
+    
+    // Get canvas dimensions
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate relative position of the cursor within the canvas
+    const x = wheelEvent.clientX - rect.left;
+    const xRatio = x / rect.width;
+    
+    // Calculate the time point under the cursor
+    const visibleRange = viewport.getVisibleRange();
+    const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
+    
+    // Calculate new zoom level based on wheel delta
+    const currentZoom = viewport.zoomLevel;
+    const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
+    
+    // Apply zoom centered on the cursor position
+    viewport.setZoom(newZoom, centerTime);
+  });
 }

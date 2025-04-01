@@ -4,7 +4,8 @@
  * @module core/viewport
  */
 
-import { eventManager } from '../services/events';
+// Import from the services index instead of directly from events
+import { eventManager } from '../services';
 import type { ViewportRange } from '../types';
 
 /**

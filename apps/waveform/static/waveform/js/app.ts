@@ -15,7 +15,16 @@ import {
   signalPreferences,
   updateSignalRadix,
 } from './services/radix';
-import { type Signal, type SignalData, TimePoint } from './types';
+import {
+  type CursorState,
+  type Signal,
+  type SignalData,
+  SignalPreference,
+  type SignalPreferences,
+  type TimePoint,
+  type Timescale,
+  ViewportRange,
+} from './types';
 import { clearAndRedraw, drawTimeline, drawWaveform } from './ui/waveform';
 import { calculateMaxZoom, calculateMinTimeDelta, getSignalValueAtTime } from './utils';
 
@@ -23,9 +32,9 @@ import { calculateMaxZoom, calculateMinTimeDelta, getSignalValueAtTime } from '.
 type ExtendedHierarchyNode = {
   name: string;
   fullPath: string;
-  children: Map<string, any>;
+  children: Map<string, ExtendedHierarchyNode>;
   signals: Signal[];
-  parent?: any;
+  parent?: ExtendedHierarchyNode;
   expanded?: boolean;
   selected?: boolean;
   isSignal?: boolean;
@@ -46,6 +55,32 @@ export interface WaveformViewerOptions {
   height: number;
   /** Time scale for displaying time values */
   timeScale: number;
+}
+
+// Extend Window interface with our custom properties
+declare global {
+  interface Window {
+    timescale: Timescale;
+    signalPreferences: SignalPreferences;
+    formatSignalValue: (value: string, signal: Signal) => string;
+    clearAndRedraw: (canvas: HTMLCanvasElement) => void;
+    getSignalValueAtTime: (signal: Signal, time: number) => string | undefined;
+    cursor: CursorState;
+    updateDisplayedSignals?: () => void;
+    SignalRow?: { [key: string]: any; activeSignalName?: string };
+  }
+
+  interface HTMLElement {
+    hierarchyRoot?: ExtendedHierarchyNode;
+  }
+
+  interface HTMLCanvasElement {
+    signalData?: TimePoint[];
+    signal?: Signal;
+    valueDisplay?: HTMLElement;
+    signalName?: string;
+    redraw?: () => void;
+  }
 }
 
 /**
@@ -176,14 +211,14 @@ export class WaveformViewer {
     this.signalData = data;
 
     // Register global window timescale
-    (window as any).timescale = data.timescale;
+    window.timescale = data.timescale;
 
     // Build hierarchy
     const root = this.hierarchyManager.buildHierarchy(data.signals);
 
     // Store root on tree element
     if (this.elements.tree) {
-      (this.elements.tree as any).hierarchyRoot = root;
+      this.elements.tree.hierarchyRoot = root;
 
       // Create and append tree elements
       const treeElement = this.hierarchyManager.createTreeElement(root);
@@ -277,14 +312,14 @@ export class WaveformViewer {
   private updateDisplayedSignals(): void {
     if (!this.elements.tree || !this.elements.waveformContainer) return;
 
-    const hierarchyRoot = (this.elements.tree as any).hierarchyRoot as ExtendedHierarchyNode;
+    const hierarchyRoot = this.elements.tree.hierarchyRoot;
     if (!hierarchyRoot) return;
 
     // Get all visible signals
     const visibleSignals = this.collectVisibleSignals(hierarchyRoot);
 
     // Store active signal name before clearing the container
-    const activeSignalName = (window as any).SignalRow?.activeSignalName;
+    const _activeSignalName = window.SignalRow?.activeSignalName;
 
     // Clear the container
     this.elements.waveformContainer.innerHTML = '';
@@ -302,8 +337,8 @@ export class WaveformViewer {
     // Draw waveforms on all canvases
     for (const canvas of Array.from(signalCanvases)) {
       if (canvas.id !== 'timeline') {
-        const signalData = (canvas as any).signalData;
-        const signal = (canvas as any).signal;
+        const signalData = canvas.signalData;
+        const signal = canvas.signal;
 
         if (canvas.width > 0 && canvas.height > 0 && signalData) {
           drawWaveform(canvas, signalData, signal);
@@ -354,9 +389,9 @@ export class WaveformViewer {
     const waveformCanvas = document.createElement('canvas');
     waveformCanvas.classList.add('waveform-canvas');
     waveformCanvas.setAttribute('data-signal-name', signal.name);
-    (waveformCanvas as any).signalData = signal.data;
-    (waveformCanvas as any).signal = signal;
-    (waveformCanvas as any).valueDisplay = valueCell;
+    waveformCanvas.signalData = signal.data;
+    waveformCanvas.signal = signal;
+    waveformCanvas.valueDisplay = valueCell;
 
     const canvasContainer = document.createElement('div');
     canvasContainer.classList.add('waveform-canvas-container');
@@ -493,14 +528,14 @@ export class WaveformViewer {
 
 // Make certain functionality globally accessible
 // These will be gradually phased out as the application is modularized further
-(window as any).signalPreferences = signalPreferences;
-(window as any).formatSignalValue = formatSignalValue;
-(window as any).clearAndRedraw = clearAndRedraw;
-(window as any).getSignalValueAtTime = getSignalValueAtTime;
-(window as any).cursor = cursor;
+window.signalPreferences = signalPreferences;
+window.formatSignalValue = formatSignalValue;
+window.clearAndRedraw = clearAndRedraw;
+window.getSignalValueAtTime = getSignalValueAtTime;
+window.cursor = cursor;
 
 // Add updateDisplayedSignals to window object
-(window as any).updateDisplayedSignals = () => {
+window.updateDisplayedSignals = () => {
   // This is a placeholder that will be replaced by the actual viewer instance
   console.warn('updateDisplayedSignals not yet initialized');
 };

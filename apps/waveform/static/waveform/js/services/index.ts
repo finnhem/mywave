@@ -1,8 +1,13 @@
 /**
- * Services index module.
- * Re-exports all service functionality for easier imports.
- * @module services
+ * Services module index.
+ * Re-exports all services for easier imports.
  */
 
-export * from './events';
+// Re-export events
+export { eventManager } from './events';
+
+// Re-export radix
 export * from './radix';
+
+// Re-export hierarchy
+export * from './hierarchy';

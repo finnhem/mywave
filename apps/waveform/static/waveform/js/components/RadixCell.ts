@@ -3,12 +3,21 @@
  * @module components/RadixCell
  */
 
-import { eventManager } from '../events';
-import { signalPreferences, updateSignalRadix } from '../radix';
+import { eventManager } from '../services/events';
+import { signalPreferences, updateSignalRadix } from '../services/radix';
 import type { Signal } from '../types';
 import { BaseCell } from './BaseCell';
 
 type RadixType = 'bin' | 'hex' | 'sdec' | 'udec';
+type RadixApiType = 'binary' | 'hex' | 'decimal' | 'ascii';
+
+// Mapping from UI radix type to API radix type
+const radixMapping: Record<RadixType, RadixApiType> = {
+  bin: 'binary',
+  hex: 'hex',
+  sdec: 'decimal',
+  udec: 'decimal',
+};
 
 interface RadixTooltips {
   [key: string]: string;
@@ -91,8 +100,8 @@ export class RadixCell extends BaseCell {
     };
 
     const newRadix = radixCycle[currentRadix as RadixType];
-    updateSignalRadix(this.signal.name, newRadix, () => {
-      this.updateDisplay(newRadix);
-    });
+    // Convert to API format before calling updateSignalRadix
+    updateSignalRadix(this.signal.name, radixMapping[newRadix]);
+    this.updateDisplay(newRadix);
   }
 }
