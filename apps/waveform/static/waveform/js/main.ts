@@ -15,7 +15,7 @@ import {
   HierarchyNode,
   buildHierarchy,
   createTreeElement,
-  toggleNodeSelection,
+  toggleNodeVisibility,
 } from './hierarchy';
 import { formatSignalValue, getSignalRadix, signalPreferences, updateSignalRadix } from './radix';
 import {
@@ -76,7 +76,7 @@ window.cursor = cursor;
 window.updateDisplayedSignals = updateDisplayedSignals;
 
 /**
- * Updates the displayed signals based on tree selection.
+ * Updates the displayed signals based on tree visibility settings.
  */
 function updateDisplayedSignals(): void {
   const signalTree = document.getElementById('signal-tree');
@@ -86,14 +86,14 @@ function updateDisplayedSignals(): void {
   const container = document.getElementById('waveform-rows-container');
   if (!container) return;
   
-  // Get all selected signals
-  const selectedSignals = collectSelectedSignals(signalTree.hierarchyRoot);
+  // Get all visible signals
+  const visibleSignals = collectVisibleSignals(signalTree.hierarchyRoot);
   
   // Clear the container
   container.innerHTML = '';
   
-  // Render all selected signals directly
-  selectedSignals.forEach(signal => {
+  // Render all visible signals directly
+  visibleSignals.forEach(signal => {
     const row = new SignalRow(signal);
     container.appendChild(row.render());
   });
@@ -111,18 +111,18 @@ function updateDisplayedSignals(): void {
 }
 
 /**
- * Collects all selected signals from the hierarchy
+ * Collects all visible signals from the hierarchy
  */
-function collectSelectedSignals(node: ExtendedHierarchyNode): Signal[] {
+function collectVisibleSignals(node: ExtendedHierarchyNode): Signal[] {
   let signals: Signal[] = [];
-  if (node.isSignal && node.selected && node.signalData) {
+  if (node.isSignal && node.visible && node.signalData) {
     signals.push(node.signalData);
   }
   
   // Handle children as Map as defined in HierarchyNode
   if (node.children instanceof Map) {
     for (const child of node.children.values()) {
-      signals = signals.concat(collectSelectedSignals(child as ExtendedHierarchyNode));
+      signals = signals.concat(collectVisibleSignals(child as ExtendedHierarchyNode));
     }
   }
   
@@ -331,7 +331,7 @@ function setupEventHandlers(): void {
     selectAllBtn.addEventListener('click', () => {
       const signalTree = document.getElementById('signal-tree');
       if (signalTree?.hierarchyRoot) {
-        toggleNodeSelection(signalTree.hierarchyRoot, true);
+        toggleNodeVisibility(signalTree.hierarchyRoot, true);
       }
     });
   }
@@ -340,7 +340,7 @@ function setupEventHandlers(): void {
     deselectAllBtn.addEventListener('click', () => {
       const signalTree = document.getElementById('signal-tree');
       if (signalTree?.hierarchyRoot) {
-        toggleNodeSelection(signalTree.hierarchyRoot, false);
+        toggleNodeVisibility(signalTree.hierarchyRoot, false);
       }
     });
   }

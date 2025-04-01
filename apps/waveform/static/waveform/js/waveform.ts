@@ -166,8 +166,8 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
   clearCanvas(ctx, canvas.width, canvas.height);
 
   ctx.save();
-  ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
-  ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
+  ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#2563eb' : 'black';
+  ctx.lineWidth = canvas.classList.contains('cursor-active-canvas') ? 2 : 1;
   ctx.beginPath();
 
   // Find initial state
@@ -249,10 +249,10 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   clearCanvas(ctx, canvas.width, canvas.height);
 
   ctx.save();
-  // Use black for normal signals
-  ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
-  ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
-  ctx.lineWidth = canvas.classList.contains('selected') ? 2 : 1;
+  // Use appropriate colors based on active state
+  ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#2563eb' : 'black';
+  ctx.fillStyle = canvas.classList.contains('cursor-active-canvas') ? '#dbeafe' : '#f0f0f0';
+  ctx.lineWidth = canvas.classList.contains('cursor-active-canvas') ? 2 : 1;
 
   // Find points just outside the visible range on both sides
   const initialPoint = data.findLast((point) => point.time <= visibleRange.start);
@@ -322,14 +322,14 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
 
     // Set styles based on value type
     if (rawValue === 'X' || rawValue === 'x') {
-      ctx.fillStyle = canvas.classList.contains('selected') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
-      ctx.strokeStyle = canvas.classList.contains('selected') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
+      ctx.fillStyle = canvas.classList.contains('cursor-active-canvas') ? '#FCA5A5' : '#FECACA'; // Tailwind red-300/200
+      ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#DC2626' : '#EF4444'; // Tailwind red-600/500
     } else if (rawValue === 'Z' || rawValue === 'z') {
-      ctx.fillStyle = canvas.classList.contains('selected') ? '#93C5FD' : '#BFDBFE'; // Tailwind blue-300/200
-      ctx.strokeStyle = canvas.classList.contains('selected') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
+      ctx.fillStyle = canvas.classList.contains('cursor-active-canvas') ? '#93C5FD' : '#BFDBFE'; // Tailwind blue-300/200
+      ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#2563EB' : '#3B82F6'; // Tailwind blue-600/500
     } else {
-      ctx.fillStyle = canvas.classList.contains('selected') ? '#e6f0ff' : '#f0f0f0';
-      ctx.strokeStyle = canvas.classList.contains('selected') ? '#0066cc' : 'black';
+      ctx.fillStyle = canvas.classList.contains('cursor-active-canvas') ? '#dbeafe' : '#f0f0f0'; // Tailwind blue-100 / gray-100
+      ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#2563eb' : 'black'; // Tailwind blue-600 / black
     }
 
     // Draw trapezoid
@@ -346,11 +346,11 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
     if (isSpecialValue) {
       ctx.fillStyle =
         rawValue.toLowerCase() === 'x'
-          ? canvas.classList.contains('selected')
+          ? canvas.classList.contains('cursor-active-canvas')
             ? '#B91C1C'
             : '#DC2626'
           : // Red for X
-            canvas.classList.contains('selected')
+            canvas.classList.contains('cursor-active-canvas')
             ? '#1D4ED8'
             : '#2563EB'; // Blue for Z
       ctx.font = 'bold 12px monospace';

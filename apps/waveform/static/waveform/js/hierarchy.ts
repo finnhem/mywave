@@ -17,7 +17,7 @@ class HierarchyNode {
   children: Map<string, HierarchyNode>;
   parent: HierarchyNode | null;
   expanded: boolean;
-  selected: boolean;
+  visible: boolean;
   element: HTMLElement | null;
   signalData: Signal | null;
   fullPath: string;
@@ -28,7 +28,7 @@ class HierarchyNode {
     this.children = new Map();
     this.parent = null;
     this.expanded = true;
-    this.selected = true;
+    this.visible = true;
     this.element = null;
     this.signalData = null;
     this.fullPath = '';
@@ -124,10 +124,12 @@ function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
   // Add checkbox for visibility toggle
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.checked = node.selected;
+  checkbox.checked = node.visible;
+  checkbox.title = "Show/hide signal";
+  checkbox.className = 'mr-2';
   checkbox.onclick = (e: MouseEvent) => {
     e.stopPropagation();
-    toggleNodeSelection(node, checkbox.checked);
+    toggleNodeVisibility(node, checkbox.checked);
   };
   header.appendChild(checkbox);
 
@@ -151,21 +153,21 @@ function createTreeElement(node: HierarchyNode, level = 0): HTMLElement {
 }
 
 /**
- * Toggles selection state of a node and its children.
- * Updates UI to reflect selection state.
+ * Toggles visibility state of a node and its children.
+ * Updates UI to reflect visibility state.
  * @param {HierarchyNode} node - Node to toggle
- * @param {boolean} [selected] - Force specific selection state
+ * @param {boolean} [visible] - Force specific visibility state
  * @param {boolean} [skipUpdate=false] - Skip display update
  */
-function toggleNodeSelection(
+function toggleNodeVisibility(
   node: HierarchyNode,
-  selected = !node.selected,
+  visible = !node.visible,
   skipUpdate = false
 ): void {
-  // Update node selection immediately
-  node.selected = selected;
+  // Update node visibility immediately
+  node.visible = visible;
   const checkbox = node.element?.querySelector('input[type="checkbox"]') as HTMLInputElement;
-  checkbox.checked = selected;
+  checkbox.checked = visible;
   checkbox.indeterminate = false;
 
   // Get all children that need to be updated
@@ -173,7 +175,7 @@ function toggleNodeSelection(
 
   // If this is a leaf node or has no children, update immediately
   if (children.length === 0) {
-    updateParentSelection(node);
+    updateParentVisibility(node);
     if (!skipUpdate) {
       window.updateDisplayedSignals();
     }
@@ -182,11 +184,11 @@ function toggleNodeSelection(
 
   // Process all children immediately for better responsiveness
   for (const child of children) {
-    toggleNodeSelection(child, selected, true);
+    toggleNodeVisibility(child, visible, true);
   }
 
   // After all children are updated
-  updateParentSelection(node);
+  updateParentVisibility(node);
 
   // Only trigger display update after all changes are processed
   if (!skipUpdate) {
@@ -195,21 +197,21 @@ function toggleNodeSelection(
 }
 
 /**
- * Updates parent node selection state based on children.
- * A parent is selected only if all children are selected.
+ * Updates parent node visibility state based on children.
+ * A parent is visible only if all children are visible.
  * @param {HierarchyNode} node - Node to update parent for
  */
-function updateParentSelection(node: HierarchyNode): void {
+function updateParentVisibility(node: HierarchyNode): void {
   let parent = node.parent;
   while (parent) {
     const children = Array.from(parent.children.values());
-    const allSelected = children.every((child) => child.selected);
-    const someSelected = children.some((child) => child.selected);
+    const allVisible = children.every((child) => child.visible);
+    const someVisible = children.some((child) => child.visible);
 
-    parent.selected = allSelected;
+    parent.visible = allVisible;
     const checkbox = parent.element?.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    checkbox.checked = allSelected;
-    checkbox.indeterminate = !allSelected && someSelected;
+    checkbox.checked = allVisible;
+    checkbox.indeterminate = !allVisible && someVisible;
 
     parent = parent.parent;
   }
@@ -219,6 +221,6 @@ export {
   HierarchyNode,
   buildHierarchy,
   createTreeElement,
-  toggleNodeSelection,
-  updateParentSelection,
+  toggleNodeVisibility,
+  updateParentVisibility,
 };

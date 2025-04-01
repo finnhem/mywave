@@ -15,13 +15,13 @@
             <div id="file-upload-status" class="ml-auto"></div>
         </div>
     </form>
-    <div id="workspace" class="grid grid-cols-[300px_1fr] gap-5 h-[calc(100vh-100px)] p-2.5 overflow-hidden">
+    <div id="workspace" class="grid grid-cols-[300px_1fr] gap-5 h-[calc(100vh-150px)] p-2.5 overflow-hidden">
         <div id="signal-selector-container" class="border border-gray-200 rounded bg-white flex flex-col overflow-hidden">
             <div class="signal-selector-controls flex gap-2.5 p-2.5 bg-gray-50 border-b border-gray-200">
-                <button id="select-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Select All</button>
-                <button id="deselect-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Deselect All</button>
+                <button id="select-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Show All</button>
+                <button id="deselect-all" class="flex-1 px-2.5 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Hide All</button>
             </div>
-            <div id="signal-tree" class="overflow-y-auto flex-grow p-2.5"></div>
+            <div id="signal-tree" class="overflow-y-auto flex-grow p-2.5 select-none"></div>
         </div>
         <div id="waveform-viewer-container" class="flex flex-col overflow-hidden relative">
             <div id="waveform-controls-container">
@@ -52,7 +52,7 @@
                         <canvas id="timeline" class="w-full h-full block"></canvas>
                     </div>
                 </div>
-                <div id="waveform-rows-container" class="flex-1 overflow-y-auto relative" style="height: calc(100vh - 200px);">
+                <div id="waveform-rows-container" class="flex-1 overflow-y-auto relative" style="height: calc(100vh - 250px);">
                     <!-- Row template -->
                     <div class="grid grid-cols-[300px_100px_50px_1fr] gap-2.5 items-center min-w-fit p-1.5 border-b border-gray-200">
                         <div class="overflow-hidden text-ellipsis whitespace-nowrap"></div>

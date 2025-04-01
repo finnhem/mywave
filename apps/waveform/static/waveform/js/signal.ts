@@ -1,7 +1,7 @@
 /**
  * Signal navigation and selection module.
  * Provides functionality for:
- * - Signal selection and highlighting in the UI
+ * - Signal activation for cursor operations
  * - Navigation through signal transitions
  * - Edge detection (rising/falling)
  * - Time-based signal state analysis
@@ -17,27 +17,49 @@ import { clearAndRedraw, drawWaveform } from './waveform';
 type EdgeType = 'rising' | 'falling';
 
 /**
- * Selects a signal and updates its visual highlighting.
- * Clears previous selection and redraws affected canvases.
- * @param {string} name - Signal name to select
+ * Activates a signal for cursor operations and updates its visual highlighting.
+ * Clears previous activation and redraws affected canvases.
+ * @param {string} name - Signal name to activate
  * @param {HTMLElement} nameDiv - DOM element containing signal name
  * @param {HTMLCanvasElement} canvas - Canvas element displaying the signal
  */
 export function selectSignal(_name: string, nameDiv: HTMLElement, canvas: HTMLCanvasElement): void {
-  // Clear previous selection
-  const selectedNameCells = document.querySelectorAll('.signal-name-cell.selected');
-  for (let i = 0; i < selectedNameCells.length; i++) {
-    selectedNameCells[i].classList.remove('selected');
+  // Clear previous active signal cells
+  const activeNameCells = document.querySelectorAll('.signal-name-cell.cursor-active');
+  for (let i = 0; i < activeNameCells.length; i++) {
+    activeNameCells[i].classList.remove('cursor-active');
+    activeNameCells[i].classList.remove('text-blue-700');
+    activeNameCells[i].classList.remove('font-bold');
   }
 
-  const selectedCanvases = document.querySelectorAll('canvas.selected');
-  for (let i = 0; i < selectedCanvases.length; i++) {
-    selectedCanvases[i].classList.remove('selected');
+  // Clear previous active signal rows
+  const activeRows = document.querySelectorAll('.cursor-active');
+  for (let i = 0; i < activeRows.length; i++) {
+    if (!activeRows[i].classList.contains('signal-name-cell')) {
+      activeRows[i].classList.remove('cursor-active');
+    }
   }
 
-  // Set new selection
-  nameDiv.classList.add('selected');
-  canvas.classList.add('selected');
+  // Clear previous active canvases
+  const activeCanvases = document.querySelectorAll('canvas.cursor-active-canvas');
+  for (let i = 0; i < activeCanvases.length; i++) {
+    activeCanvases[i].classList.remove('cursor-active-canvas');
+    activeCanvases[i].classList.remove('active');
+  }
+
+  // Set new active signal
+  nameDiv.classList.add('cursor-active');
+  nameDiv.classList.add('text-blue-700');
+  nameDiv.classList.add('font-bold');
+  
+  // Add cursor-active to the parent row
+  const row = nameDiv.closest('[data-signal-name]');
+  if (row) {
+    row.classList.add('cursor-active');
+  }
+  
+  canvas.classList.add('cursor-active-canvas');
+  canvas.classList.add('active');
 
   // Redraw all canvases to update highlighting
   const canvases = document.querySelectorAll<HTMLCanvasElement>('canvas');
@@ -50,13 +72,13 @@ export function selectSignal(_name: string, nameDiv: HTMLElement, canvas: HTMLCa
 }
 
 /**
- * Gets the currently selected signal's data.
- * Retrieves data from the selected canvas element.
- * @returns {TimePoint[]|null} Selected signal data or null if no selection
+ * Gets the currently active signal's data.
+ * Retrieves data from the active canvas element.
+ * @returns {TimePoint[]|null} Active signal data or null if no active signal
  */
 function getSelectedSignalData(): TimePoint[] | null {
-  const selectedCanvas = document.querySelector<HTMLCanvasElement>('canvas.selected');
-  return selectedCanvas?.signalData || null;
+  const activeCanvas = document.querySelector<HTMLCanvasElement>('canvas.cursor-active-canvas');
+  return activeCanvas?.signalData || null;
 }
 
 /**

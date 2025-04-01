@@ -16,15 +16,15 @@ interface SignalRowOptions {
 }
 
 export class SignalRow {
-  // Keep track of currently selected row
-  static selectedRow: SignalRow | null = null;
-  // Keep track of selected signal name (more reliable than the row reference)
-  static selectedSignalName: string | null = null;
+  // Keep track of currently cursor-active row
+  static activeRow: SignalRow | null = null;
+  // Keep track of cursor-active signal name (more reliable than the row reference)
+  static activeSignalName: string | null = null;
 
   private signal: Signal;
   private options: SignalRowOptions;
   private element: HTMLElement;
-  private isSelected: boolean;
+  private isActive: boolean;
   private nameCell: NameCell;
   private valueCell: ValueCell;
   private radixCell: RadixCell;
@@ -36,7 +36,7 @@ export class SignalRow {
   constructor(signal: Signal, options: SignalRowOptions = {}) {
     this.signal = signal;
     this.options = options;
-    this.isSelected = false;
+    this.isActive = false;
 
     // Create cell components
     this.nameCell = new NameCell(signal);
@@ -55,9 +55,9 @@ export class SignalRow {
       this.waveformCell.canvas.signalName = this.signal.name;
     }
 
-    // Check if this row should be selected (matches the selected signal name)
-    if (SignalRow.selectedSignalName === this.signal.name) {
-      // Before selecting, ensure the canvas has valid dimensions by
+    // Check if this row should be active (matches the active signal name)
+    if (SignalRow.activeSignalName === this.signal.name) {
+      // Before activating, ensure the canvas has valid dimensions by
       // checking the cache first
       if (
         this.waveformCell.canvas &&
@@ -76,11 +76,11 @@ export class SignalRow {
         }
       }
 
-      // Now select this row
-      this.select();
+      // Now activate this row
+      this.activate();
 
-      // Also update the global selectedRow reference
-      SignalRow.selectedRow = this;
+      // Also update the global activeRow reference
+      SignalRow.activeRow = this;
     }
   }
 
@@ -113,56 +113,59 @@ export class SignalRow {
    * Sets up event handlers for the row
    */
   private setupEventHandlers(): void {
-    // Handle row selection
-    const handleSelection = (evt: Event) => {
+    // Handle row activation for cursor
+    const handleActivation = (evt: Event) => {
       // If clicking canvas, handle cursor position first
       if ((evt.target as HTMLElement).tagName === 'CANVAS') {
         handleCanvasClick(evt as MouseEvent);
       }
 
-      // Deselect previous row if different from current
-      if (SignalRow.selectedRow && SignalRow.selectedRow !== this) {
-        SignalRow.selectedRow.deselect();
+      // Deactivate previous row if different from current
+      if (SignalRow.activeRow && SignalRow.activeRow !== this) {
+        SignalRow.activeRow.deactivate();
       }
 
-      // Always select this row (the select method handles the case if it's already selected)
-      this.select();
-
-      // No need to emit another event here since the select() method already does it
+      // Always activate this row (the activate method handles the case if it's already active)
+      this.activate();
     };
 
     // Add click handler to the entire row
-    this.element.addEventListener('click', handleSelection);
+    this.element.addEventListener('click', handleActivation);
 
     // Prevent double handling of canvas clicks
     if (this.waveformCell.canvas) {
       this.waveformCell.canvas.addEventListener('click', (evt) => {
         evt.stopPropagation(); // Stop event from bubbling to row
-        handleSelection(evt);
+        handleActivation(evt);
       });
     }
   }
 
   /**
-   * Selects the row
+   * Activates the row for cursor operations
    */
-  select(): void {
-    if (!this.isSelected) {
-      this.isSelected = true;
-      this.element.classList.add('bg-blue-50');
+  activate(): void {
+    if (!this.isActive) {
+      this.isActive = true;
+      this.element.classList.add('cursor-active');
+      
       const nameElement = this.nameCell.element;
       if (nameElement) {
-        nameElement.classList.add('text-blue-600');
+        nameElement.classList.add('cursor-active');
+        nameElement.classList.add('text-blue-700');
+        nameElement.classList.add('font-bold');
       }
+      
       if (this.waveformCell.canvas) {
-        this.waveformCell.canvas.classList.add('selected');
+        this.waveformCell.canvas.classList.add('active');
+        this.waveformCell.canvas.classList.add('cursor-active-canvas');
         clearAndRedraw(this.waveformCell.canvas);
       }
     }
 
-    // Always update static references, even if already selected
-    SignalRow.selectedRow = this;
-    SignalRow.selectedSignalName = this.signal.name;
+    // Always update static references, even if already active
+    SignalRow.activeRow = this;
+    SignalRow.activeSignalName = this.signal.name;
 
     // Save canvas dimensions in the global cache
     if (
@@ -177,44 +180,49 @@ export class SignalRow {
     }
 
     // Emit selection event
-    const selectionEvent = new CustomEvent('signal-selected', {
+    const selectionEvent = new CustomEvent('signal-activated', {
       bubbles: true,
       detail: {
         signal: this.signal,
-        selected: true,
+        active: true,
       },
     });
     document.dispatchEvent(selectionEvent);
   }
 
   /**
-   * Deselects the row
+   * Deactivates the row
    */
-  deselect(): void {
-    if (this.isSelected) {
-      this.isSelected = false;
-      this.element.classList.remove('bg-blue-50');
+  deactivate(): void {
+    if (this.isActive) {
+      this.isActive = false;
+      this.element.classList.remove('cursor-active');
+      
       const nameElement = this.nameCell.element;
       if (nameElement) {
-        nameElement.classList.remove('text-blue-600');
+        nameElement.classList.remove('cursor-active');
+        nameElement.classList.remove('text-blue-700');
+        nameElement.classList.remove('font-bold');
       }
+      
       if (this.waveformCell.canvas) {
-        this.waveformCell.canvas.classList.remove('selected');
+        this.waveformCell.canvas.classList.remove('active');
+        this.waveformCell.canvas.classList.remove('cursor-active-canvas');
         clearAndRedraw(this.waveformCell.canvas);
       }
 
-      // If this was the selected row, clear the row reference but KEEP the signal name
-      if (SignalRow.selectedRow === this) {
-        SignalRow.selectedRow = null;
-        // DO NOT clear selectedSignalName - we need it for restoring selection
+      // If this was the active row, clear the row reference but KEEP the signal name
+      if (SignalRow.activeRow === this) {
+        SignalRow.activeRow = null;
+        // DO NOT clear activeSignalName - we need it for restoring selection
       }
 
-      // Emit deselection event
-      const selectionEvent = new CustomEvent('signal-selected', {
+      // Emit deactivation event
+      const selectionEvent = new CustomEvent('signal-activated', {
         bubbles: true,
         detail: {
           signal: this.signal,
-          selected: false,
+          active: false,
         },
       });
       document.dispatchEvent(selectionEvent);
@@ -248,10 +256,10 @@ export class SignalRow {
       }
     }
 
-    // Clean up selection if this row was selected
-    if (SignalRow.selectedRow === this) {
-      SignalRow.selectedRow = null;
-      // Don't clear the selectedSignalName so it can be restored if this signal comes back into view
+    // Clean up selection if this row was active
+    if (SignalRow.activeRow === this) {
+      SignalRow.activeRow = null;
+      // Don't clear the activeSignalName so it can be restored if this signal comes back into view
     }
 
     this.nameCell.destroy();
