@@ -6,8 +6,15 @@
 
 import { cursor } from './core/cursor';
 import { viewport } from './core/viewport';
-import { type CursorChangeEvent, type RadixChangeEvent, eventManager } from './services/events';
+import { cacheManager } from './services/cache';
+import {
+  type CursorChangeEvent,
+  type RadixChangeEvent,
+  type SignalSelectEvent,
+  eventManager,
+} from './services/events';
 import { HierarchyManager } from './services/hierarchy';
+import { preloader } from './services/preload';
 import {
   cycleRadix,
   formatSignalValue,
@@ -199,8 +206,59 @@ export class WaveformViewer {
     // Initialize event handlers
     this.initializeEventHandlers();
 
+    // Initialize cache-related components
+    this.initializeCache();
+
     // Mark as initialized
     this.initialized = true;
+  }
+
+  /**
+   * Initializes the caching system
+   */
+  private initializeCache(): void {
+    // Add event handlers for cache invalidation
+    this.initializeSignalSelectHandler();
+    this.initializeViewportChangeHandler();
+
+    // Add periodic cache maintenance
+    setInterval(() => {
+      // Log cache statistics to console
+      console.debug('Cache statistics:', cacheManager.getAllStats());
+    }, 60000); // Every minute
+  }
+
+  /**
+   * Initializes signal select event handler for cache invalidation
+   */
+  private initializeSignalSelectHandler(): void {
+    eventManager.on<SignalSelectEvent>('signal-select', (event) => {
+      if (event.signalName) {
+        // Invalidate caches related to this signal
+        cacheManager.invalidate('waveforms', event.signalName);
+        cacheManager.invalidate('waveforms', `signal_data_${event.signalName}`);
+        cacheManager.invalidate('computedValues', event.signalName);
+      }
+    });
+  }
+
+  /**
+   * Initializes viewport change event handler for cache invalidation
+   */
+  private initializeViewportChangeHandler(): void {
+    let lastViewportChangeTime = 0;
+    eventManager.on('viewport-range-change', () => {
+      const now = Date.now();
+
+      // Don't invalidate too frequently
+      if (now - lastViewportChangeTime > 1000) {
+        lastViewportChangeTime = now;
+
+        // Since viewport changed drastically, previous rendered waveforms might not be useful
+        // Just clear the entire waveforms cache after a viewport zoom/pan operation
+        cacheManager.clear('waveforms');
+      }
+    });
   }
 
   /**
@@ -213,6 +271,9 @@ export class WaveformViewer {
     // Register global window timescale
     window.timescale = data.timescale;
 
+    // Preload dimensions for all signals
+    preloader.preloadDimensions(data.signals);
+
     // Build hierarchy
     const root = this.hierarchyManager.buildHierarchy(data.signals);
 
@@ -224,6 +285,25 @@ export class WaveformViewer {
       const treeElement = this.hierarchyManager.createTreeElement(root);
       this.elements.tree.innerHTML = '';
       this.elements.tree.appendChild(treeElement);
+
+      // Get visible signals for preloading
+      const visibleSignals = this.collectVisibleSignals(root);
+
+      // Preload the first set of signals that will be visible
+      preloader.preloadSignals(visibleSignals.slice(0, 20));
+
+      // Precompute common time values for cursor positions
+      const visibleRange = viewport.getVisibleRange();
+      const precomputeTimes = [
+        visibleRange.start,
+        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.25,
+        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.5,
+        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.75,
+        visibleRange.end,
+      ];
+
+      // Preload computed values for visible signals
+      preloader.preloadComputedValues(visibleSignals, precomputeTimes);
     }
 
     // Handle signals and initialize timeline
@@ -293,6 +373,13 @@ export class WaveformViewer {
         this.updateZoomDisplay();
       }
     }
+
+    // Set global window properties for easy access
+    window.formatSignalValue = formatSignalValue;
+    window.clearAndRedraw = clearAndRedraw;
+    window.getSignalValueAtTime = getSignalValueAtTime;
+    window.cursor = cursor;
+    window.updateDisplayedSignals = this.updateDisplayedSignals.bind(this);
   }
 
   /**
@@ -329,22 +416,30 @@ export class WaveformViewer {
       this.renderSignalRow(signal, this.elements.waveformContainer);
     }
 
-    // Initialize all signal canvases
-    const signalCanvases = document.querySelectorAll<HTMLCanvasElement>(
-      '.waveform-canvas-container canvas'
-    );
+    // Record cache performance metrics for this rendering operation
+    const waveformStats = cacheManager.getStats('waveforms');
+    if (waveformStats) {
+      console.debug(
+        'Waveform rendering cache performance:',
+        `${waveformStats.hits}/${waveformStats.gets} hits (${Math.round(
+          (waveformStats.hits / Math.max(waveformStats.gets, 1)) * 100
+        )}%)`
+      );
+    }
 
-    // Draw waveforms on all canvases
-    for (const canvas of Array.from(signalCanvases)) {
-      if (canvas.id !== 'timeline') {
-        const signalData = canvas.signalData;
-        const signal = canvas.signal;
+    // After rendering current signals, preload the next batch that might become visible
+    setTimeout(() => {
+      if (this.signalData) {
+        // Get all signals not currently visible but might be scrolled to
+        const nextSignalBatch = this.signalData.signals
+          .filter((s) => !visibleSignals.some((vs) => vs.name === s.name))
+          .slice(0, 10);
 
-        if (canvas.width > 0 && canvas.height > 0 && signalData) {
-          drawWaveform(canvas, signalData, signal);
+        if (nextSignalBatch.length > 0) {
+          preloader.preloadSignals(nextSignalBatch);
         }
       }
-    }
+    }, 100);
   }
 
   /**

@@ -4,25 +4,59 @@
  */
 
 import { viewport } from '../core/viewport';
+import { cacheManager } from '../services/cache';
 import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '../services/events';
 import type { Signal, TimePoint } from '../types';
+import { CacheableCanvas } from '../ui/CacheableCanvas';
 import { drawWaveform } from '../ui/waveform';
 import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
 
-// Keep track of canvas dimensions by signal name
-export const canvasDimensionsCache = new Map<string, { width: number; height: number }>();
+// Export a compatibility layer for existing code
+export const canvasDimensionsCache = {
+  has: (key: string) => cacheManager.has('dimensions', key),
+  get: (key: string) => cacheManager.get<{ width: number; height: number }>('dimensions', key),
+  set: (key: string, value: { width: number; height: number }) =>
+    cacheManager.set('dimensions', key, value, undefined, [key]),
+};
 
 export class WaveformCell extends BaseCell {
-  private _canvas: HTMLCanvasElement = document.createElement('canvas');
+  // Cacheable canvas that handles efficient rendering
+  private _cacheableCanvas: CacheableCanvas;
+
+  // Element references for easy access
+  private _canvas: HTMLCanvasElement;
+
+  // For zoom handling
+  private _zoomHandler: ((event: WheelEvent) => void) | null = null;
+
+  // Event handlers
+  private _canvasClickHandler: ((event: CanvasClickEvent) => void) | null = null;
+  private _redrawHandler: ((event: RedrawRequestEvent) => void) | null = null;
+  private _resizeObserver: ResizeObserver | null = null;
+
+  // Mount state tracking
   private _hasMounted = false;
   private _mountAttempts = 0;
   private _maxMountAttempts = 5;
-  private _resizeObserver: ResizeObserver | null = null;
 
-  // Store handler references for cleanup
-  private _canvasClickHandler: ((event: CanvasClickEvent) => void) | null = null;
-  private _redrawHandler: ((event: RedrawRequestEvent) => void) | null = null;
+  /**
+   * Creates a new WaveformCell for displaying signal waveforms
+   * @param signal Signal to display
+   */
+  constructor(signal: Signal) {
+    super(signal);
+
+    // Initialize the cacheable canvas and get the element
+    this._cacheableCanvas = new CacheableCanvas();
+    this._canvas = this._cacheableCanvas.element;
+
+    // Set the signal reference
+    this._cacheableCanvas.signal = signal;
+
+    // Set up the redraw function
+    this._cacheableCanvas.setRedrawFunction(() => this.redrawCanvas());
+  }
 
   /**
    * Gets the canvas element
@@ -41,12 +75,6 @@ export class WaveformCell extends BaseCell {
 
     // Create and set up canvas
     this._canvas.className = 'w-full h-full block';
-
-    // Store signal data and metadata on canvas
-    this._canvas.signalData = this.signal.data;
-    this._canvas.signalName = this.signal.name;
-    this._canvas.signal = this.signal; // Keep this for backward compatibility
-    this._canvas.setAttribute('data-signal-name', this.signal.name);
 
     // Set up event handlers if signal has data
     if (this.signal.data && this.signal.data.length > 0) {
@@ -97,19 +125,14 @@ export class WaveformCell extends BaseCell {
       };
       eventManager.on('redraw-request', this._redrawHandler);
 
-      // Check if we have stored dimensions for this signal
-      if (canvasDimensionsCache.has(this.signal.name)) {
-        const dimensions = canvasDimensionsCache.get(this.signal.name);
-        if (dimensions) {
-          this._canvas.width = dimensions.width;
-          this._canvas.height = dimensions.height;
-          this._hasMounted = true;
+      // Try to restore dimensions from cache
+      if (this._cacheableCanvas.restoreDimensionsFromCache()) {
+        this._hasMounted = true;
 
-          // Immediately draw the waveform without delay
-          requestAnimationFrame(() => {
-            this.redrawCanvas();
-          });
-        }
+        // Immediately draw the waveform without delay
+        requestAnimationFrame(() => {
+          this.redrawCanvas();
+        });
       }
 
       // Set explicit dimensions to avoid sizing issues
@@ -121,14 +144,12 @@ export class WaveformCell extends BaseCell {
 
           // Apply dimensions and redraw
           if (width > 0 && height > 0) {
-            this._canvas.width = width * (window.devicePixelRatio || 1);
-            this._canvas.height = height * (window.devicePixelRatio || 1);
+            // Set dimensions with device pixel ratio for high-DPI displays
+            const scaledWidth = width * (window.devicePixelRatio || 1);
+            const scaledHeight = height * (window.devicePixelRatio || 1);
 
-            // Store these dimensions for this signal name
-            canvasDimensionsCache.set(this.signal.name, {
-              width: this._canvas.width,
-              height: this._canvas.height,
-            });
+            // Update dimensions and cache them
+            this._cacheableCanvas.setDimensions(scaledWidth, scaledHeight);
 
             // Emit canvas resize event
             eventManager.emit({
@@ -154,10 +175,7 @@ export class WaveformCell extends BaseCell {
       this.tryDrawWithRetry();
     } else {
       // Clear canvas for signals without data
-      const ctx = this._canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
-      }
+      this._cacheableCanvas.clear();
     }
 
     cell.appendChild(this._canvas);
@@ -165,42 +183,73 @@ export class WaveformCell extends BaseCell {
   }
 
   /**
-   * Initializes zoom handler for a canvas element
-   * @param canvas - Canvas element to attach zoom handlers to
+   * Initializes the zoom wheel handler
+   * @param canvas Canvas element to attach zoom handler to
    */
-  private initializeZoomHandler(canvas: HTMLCanvasElement): void {
-    // Add wheel event handler for zooming
-    eventManager.addDOMListener(canvas, 'wheel', (event: Event) => {
-      const wheelEvent = event as WheelEvent;
-      // Prevent default scrolling behavior
-      wheelEvent.preventDefault();
+  initializeZoomHandler(canvas: HTMLCanvasElement): void {
+    if (this._zoomHandler) {
+      canvas.removeEventListener('wheel', this._zoomHandler);
+    }
 
-      // Get canvas dimensions
-      const rect = canvas.getBoundingClientRect();
+    this._zoomHandler = (event: WheelEvent) => {
+      // Only handle wheel events with ctrl key (zoom)
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
 
-      // Calculate relative position of the cursor within the canvas
-      const x = wheelEvent.clientX - rect.left;
-      const xRatio = x / rect.width;
+        // Calculate the point under cursor in time
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const xRatio = x / rect.width;
 
-      // Calculate the time point under the cursor
-      const visibleRange = viewport.getVisibleRange();
-      const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
+        // Apply zoom based on wheel delta
+        calculateWheelZoom(event.deltaY, xRatio);
+      }
+    };
 
-      // Calculate new zoom level based on wheel delta
-      const currentZoom = viewport.zoomLevel;
-      const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
-
-      // Apply zoom centered on the cursor position
-      viewport.setZoom(newZoom, centerTime);
-    });
+    canvas.addEventListener('wheel', this._zoomHandler, { passive: false });
   }
 
   /**
-   * Redraws the canvas with current signal data
+   * Removes event handlers when component is removed
    */
-  private redrawCanvas(): void {
-    if (this._hasMounted && this.signal.data && this.signal.data.length > 0) {
-      drawWaveform(this._canvas, this.signal.data, this.signal);
+  destroy(): void {
+    // Clean up event handlers
+    if (this._canvasClickHandler) {
+      eventManager.off('canvas-click', this._canvasClickHandler);
+      this._canvasClickHandler = null;
+    }
+
+    if (this._redrawHandler) {
+      eventManager.off('redraw-request', this._redrawHandler);
+      this._redrawHandler = null;
+    }
+
+    // Remove zoom handler
+    if (this._zoomHandler && this._canvas) {
+      this._canvas.removeEventListener('wheel', this._zoomHandler);
+      this._zoomHandler = null;
+    }
+
+    // Disconnect resize observer
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
+  }
+
+  /**
+   * Redraws the waveform canvas
+   */
+  redrawCanvas(): void {
+    if (!this._hasMounted) return;
+
+    if (this.signal.data && this.signal.data.length > 0) {
+      const visibleRange = viewport.getVisibleRange();
+
+      // Use the cacheable canvas to draw with caching
+      this._cacheableCanvas.drawWaveform(visibleRange.start, visibleRange.end);
+    } else {
+      this._cacheableCanvas.clear();
     }
   }
 
@@ -218,27 +267,24 @@ export class WaveformCell extends BaseCell {
         });
 
         // Store dimensions for future reference
-        canvasDimensionsCache.set(this.signal.name, {
-          width: this._canvas.width,
-          height: this._canvas.height,
-        });
+        if (this.signal.name) {
+          cacheManager.set('dimensions', this.signal.name, {
+            width: this._canvas.width,
+            height: this._canvas.height,
+          });
+        }
       } else if (this._mountAttempts < this._maxMountAttempts) {
         this._mountAttempts++;
 
-        // Check if we have cached dimensions we can use
-        if (canvasDimensionsCache.has(this.signal.name)) {
-          const dimensions = canvasDimensionsCache.get(this.signal.name);
-          if (dimensions) {
-            this._canvas.width = dimensions.width;
-            this._canvas.height = dimensions.height;
-            this._hasMounted = true;
+        // Try to restore from cache first
+        if (this._cacheableCanvas.restoreDimensionsFromCache()) {
+          this._hasMounted = true;
 
-            // Use requestAnimationFrame to ensure the drawing happens after layout is complete
-            requestAnimationFrame(() => {
-              this.redrawCanvas();
-            });
-            return;
-          }
+          // Use requestAnimationFrame to ensure the drawing happens after layout is complete
+          requestAnimationFrame(() => {
+            this.redrawCanvas();
+          });
+          return;
         }
 
         // Otherwise retry with increased delay
@@ -246,8 +292,8 @@ export class WaveformCell extends BaseCell {
       } else {
         // Final attempt with default dimensions if all retries fail
         if (this._canvas.width === 0 || this._canvas.height === 0) {
-          this._canvas.width = 1000;
-          this._canvas.height = 40;
+          // Set default dimensions
+          this._cacheableCanvas.setDimensions(1000, 40);
           this._hasMounted = true;
 
           // Use requestAnimationFrame to ensure the drawing happens after layout is complete
@@ -267,20 +313,11 @@ export class WaveformCell extends BaseCell {
     // Ensure canvas has dimensions before drawing
     if (this._canvas.width === 0 || this._canvas.height === 0) {
       // Try to restore from cache first
-      if (canvasDimensionsCache.has(this.signal.name)) {
-        const dimensions = canvasDimensionsCache.get(this.signal.name);
-        if (dimensions) {
-          this._canvas.width = dimensions.width;
-          this._canvas.height = dimensions.height;
-        } else {
-          this._canvas.width = 1000;
-          this._canvas.height = 40;
-        }
+      if (this._cacheableCanvas.restoreDimensionsFromCache()) {
         this._hasMounted = true;
       } else {
         // Set default dimensions if no cached value exists
-        this._canvas.width = 1000;
-        this._canvas.height = 40;
+        this._cacheableCanvas.setDimensions(1000, 40);
         this._hasMounted = true;
       }
     }
@@ -291,35 +328,5 @@ export class WaveformCell extends BaseCell {
         this.redrawCanvas();
       });
     }
-  }
-
-  /**
-   * Clean up resources when cell is destroyed
-   */
-  destroy(): void {
-    // Stop observing canvas if still active
-    if (this._resizeObserver) {
-      this._resizeObserver.disconnect();
-      this._resizeObserver = null;
-    }
-
-    // Remove event listeners
-    if (this._canvas) {
-      eventManager.cleanupElement(this._canvas);
-    }
-
-    // Unregister application events
-    if (this._canvasClickHandler) {
-      eventManager.off('canvas-click', this._canvasClickHandler);
-      this._canvasClickHandler = null;
-    }
-
-    if (this._redrawHandler) {
-      eventManager.off('redraw-request', this._redrawHandler);
-      this._redrawHandler = null;
-    }
-
-    // Call parent destroy method
-    super.destroy();
   }
 }

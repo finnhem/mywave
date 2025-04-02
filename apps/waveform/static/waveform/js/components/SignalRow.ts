@@ -3,6 +3,7 @@
  */
 
 import { cursor } from '../core/cursor';
+import { cacheManager } from '../services/cache';
 import { type CanvasClickEvent, type SignalSelectEvent, eventManager } from '../services/events';
 import type { Signal } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
@@ -14,6 +15,12 @@ import { WaveformCell, canvasDimensionsCache } from './WaveformCell';
 
 interface SignalRowOptions {
   [key: string]: unknown;
+}
+
+// Extend SignalSelectEvent with internal flag
+interface ExtendedSignalSelectEvent extends SignalSelectEvent {
+  _isInternal?: boolean;
+  source?: unknown;
 }
 
 export class SignalRow {
@@ -50,10 +57,6 @@ export class SignalRow {
 
     // Register the canvas for dimensions cache
     if (this.waveformCell.canvas) {
-      this.waveformCell.canvas.signalData = this.signal.data;
-      this.waveformCell.canvas.valueDisplay = this.valueCell.element;
-      this.waveformCell.canvas.signalName = this.signal.name;
-
       // Ensure canvas has dimensions from cache if available
       if (canvasDimensionsCache.has(this.signal.name)) {
         const dims = canvasDimensionsCache.get(this.signal.name);
@@ -101,203 +104,164 @@ export class SignalRow {
   }
 
   /**
-   * Creates the container element and composes the cells
+   * Creates the DOM element for the signal row
    */
   private createElement(): HTMLElement {
-    const element = document.createElement('div');
-    element.className =
-      'grid grid-cols-[300px_100px_50px_1fr] items-stretch min-w-fit hover:bg-gray-50 h-10';
+    const row = document.createElement('div');
+    row.className = 'signal-row flex items-center border-b border-gray-200 hover:bg-gray-50';
+    row.setAttribute('data-signal-name', this.signal.name);
 
-    // Add data attribute for signal name
-    element.dataset.signalName = this.signal.name;
+    // Use render method for cells instead of createElement
+    row.appendChild(this.nameCell.render());
+    row.appendChild(this.radixCell.render());
+    row.appendChild(this.valueCell.render());
+    row.appendChild(this.waveformCell.render());
 
-    // Create waveform container
-    const waveformContainer = document.createElement('div');
-    waveformContainer.className = 'waveform-container';
-    waveformContainer.appendChild(this.waveformCell.render());
-
-    // Render and append all cells
-    element.appendChild(this.nameCell.render());
-    element.appendChild(this.valueCell.render());
-    element.appendChild(this.radixCell.render());
-    element.appendChild(waveformContainer);
-
-    return element;
+    return row;
   }
 
   /**
-   * Handles global signal activation events
+   * Gets the row element
    */
-  private handleGlobalSignalActivation(event: SignalSelectEvent): void {
-    // If this is our signal, activate this row
-    if (event.signalName === this.signal.name) {
-      this.activate();
-    }
-    // If another signal is being selected and this row is active, deactivate this row
-    else if (this.isActive) {
-      this.deactivate();
-    }
+  getElement(): HTMLElement {
+    return this.element;
   }
 
   /**
    * Sets up event handlers for the row
    */
   private setupEventHandlers(): void {
-    // Handle row activation using event manager
-    eventManager.addDOMListener(this.element, 'click', (evt) => {
-      // Don't handle clicks on canvas elements - they have their own handlers
-      if ((evt.target as HTMLElement).tagName === 'CANVAS') {
-        return;
-      }
+    // Handle row click to activate
+    this.element.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
 
-      // Simply activate this row - the activate method will handle deactivating others
       this.activate();
     });
 
-    // Register canvas click handler through the event system
+    // Handle canvas click for this row's signal
     eventManager.on('canvas-click', (event: CanvasClickEvent) => {
-      // Skip internal events to prevent recursion
-      if (event._isInternal) {
-        return;
-      }
-
-      // Only handle events for this signal's canvas
-      if (event.signalName === this.signal.name) {
-        // Handle the canvas click on this row's canvas
+      if (event.signalName === this.signal.name && !event._isInternal) {
         this.activate();
+        const relatedCanvases = document.querySelectorAll<HTMLCanvasElement>(
+          `canvas[data-signal-name="${this.signal.name}"]`
+        );
 
-        // Update cursor directly with the time from the event
-        cursor.setTime(event.time);
+        // Redraw all canvases related to this signal to update active state
+        for (const canvas of Array.from(relatedCanvases)) {
+          if (canvas.redraw) {
+            canvas.redraw();
+          }
+        }
+
+        // Update cursor position based on click
+        if (event.time !== undefined) {
+          cursor.setTime(event.time);
+        }
       }
     });
   }
 
   /**
-   * Activates the row for cursor operations
+   * Activates this row (marks it as selected)
    */
   activate(): void {
-    // If there's already an active row (that isn't this one), deactivate it first
+    if (this.isActive) return;
+
+    // Deactivate previously active row if it exists
     if (SignalRow.activeRow && SignalRow.activeRow !== this) {
       SignalRow.activeRow.deactivate();
     }
 
-    if (!this.isActive) {
-      this.isActive = true;
-      this.element.classList.add('cursor-active');
-
-      const nameElement = this.nameCell.element;
-      if (nameElement) {
-        nameElement.classList.add('cursor-active');
-        nameElement.classList.add('text-blue-700');
-        nameElement.classList.add('font-bold');
-      }
-
-      if (this.waveformCell.canvas) {
-        this.waveformCell.canvas.classList.add('active');
-        this.waveformCell.canvas.classList.add('cursor-active-canvas');
-        clearAndRedraw(this.waveformCell.canvas);
-      }
-    }
-
-    // Always update static references, even if already active
+    // Mark this row as active
+    this.isActive = true;
+    this.element.classList.add('cursor-active-row');
     SignalRow.activeRow = this;
     SignalRow.activeSignalName = this.signal.name;
 
-    // Save canvas dimensions in the global cache
-    if (
-      this.waveformCell.canvas &&
-      this.waveformCell.canvas.width > 0 &&
-      this.waveformCell.canvas.height > 0
-    ) {
-      canvasDimensionsCache.set(this.signal.name, {
-        width: this.waveformCell.canvas.width,
-        height: this.waveformCell.canvas.height,
-      });
+    // Add active class to all canvases for this signal
+    if (this.waveformCell.canvas) {
+      this.waveformCell.canvas.classList.add('cursor-active-canvas');
+
+      // Force redraw to show active state
+      clearAndRedraw(this.waveformCell.canvas);
     }
 
-    // Emit signal select event
+    // Emit signal activation event
     eventManager.emit({
       type: 'signal-select',
       signalName: this.signal.name,
-    });
+      source: this,
+      _isInternal: true,
+    } as ExtendedSignalSelectEvent);
   }
 
   /**
-   * Deactivates the row
+   * Deactivates this row
    */
   deactivate(): void {
-    if (this.isActive) {
-      this.isActive = false;
-      this.element.classList.remove('cursor-active');
+    if (!this.isActive) return;
 
-      const nameElement = this.nameCell.element;
-      if (nameElement) {
-        nameElement.classList.remove('cursor-active');
-        nameElement.classList.remove('text-blue-700');
-        nameElement.classList.remove('font-bold');
-      }
+    this.isActive = false;
+    this.element.classList.remove('cursor-active-row');
 
-      if (this.waveformCell.canvas) {
-        this.waveformCell.canvas.classList.remove('active');
-        this.waveformCell.canvas.classList.remove('cursor-active-canvas');
-        eventManager.emit({
-          type: 'redraw-request',
-          targetCanvas: this.waveformCell.canvas,
-        });
-      }
+    // Remove active class from related canvases
+    if (this.waveformCell.canvas) {
+      this.waveformCell.canvas.classList.remove('cursor-active-canvas');
 
-      // If this was the active row, clear the row reference but KEEP the signal name
-      if (SignalRow.activeRow === this) {
-        SignalRow.activeRow = null;
-        // DO NOT clear activeSignalName - we need it for restoring selection
-      }
+      // Force redraw to show inactive state
+      clearAndRedraw(this.waveformCell.canvas);
+    }
 
-      // Emit deactivation event through the event system
-      eventManager.emit({
-        type: 'signal-activated',
-        signal: this.signal,
-        active: false,
-        _isInternal: true,
-      });
+    if (SignalRow.activeRow === this) {
+      SignalRow.activeRow = null;
     }
   }
 
   /**
-   * Updates all cells with new time value
+   * Updates the signal row display
+   * @param time Current cursor time
    */
-  updateValue(time: number): void {
+  update(time: number): void {
+    this.nameCell.update(time);
     this.valueCell.update(time);
+    this.radixCell.update(time);
     this.waveformCell.update(time);
   }
 
   /**
-   * Renders the row
-   */
-  render(): HTMLElement {
-    return this.element;
-  }
-
-  /**
-   * Clean up and destroy the row
+   * Destroys the row and cleans up resources
    */
   destroy(): void {
-    // Unregister from event system
+    // Clean up event listeners
     eventManager.off('signal-select', this.handleGlobalSignalActivation.bind(this));
 
-    // Cleanup DOM event listeners
-    if (this.element) {
-      eventManager.cleanupElement(this.element);
-    }
-
-    // Destroy child components
+    // Destroy cells
     this.nameCell.destroy();
     this.valueCell.destroy();
     this.radixCell.destroy();
     this.waveformCell.destroy();
 
-    // Remove from DOM
+    // Remove element from DOM if attached
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
+    }
+
+    // If this is the active row, clear it
+    if (SignalRow.activeRow === this) {
+      SignalRow.activeRow = null;
+    }
+  }
+
+  /**
+   * Handles global signal activation events
+   */
+  private handleGlobalSignalActivation(event: ExtendedSignalSelectEvent): void {
+    if (event._isInternal) return; // Skip internal events
+
+    if (event.signalName === this.signal.name) {
+      this.activate();
+    } else if (this.isActive) {
+      this.deactivate();
     }
   }
 }
