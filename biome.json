@@ -29,5 +29,21 @@
       "quoteStyle": "single",
       "trailingCommas": "es5"
     }
+  },
+  "files": {
+    "include": [
+      "apps/waveform/static/waveform/js/**/*.ts",
+      "apps/waveform/static/waveform/js/**/*.js"
+    ],
+    "ignore": [
+      "dist/",
+      "node_modules/",
+      "**/*.min.js",
+      "**/*.min.css",
+      ".venv/",
+      "**/*bundle.js",
+      "staticfiles/",
+      "rspack.config.js"
+    ]
   }
 }

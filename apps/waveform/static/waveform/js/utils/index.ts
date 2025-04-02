@@ -7,11 +7,11 @@
 export { formatTime } from './time';
 
 // Re-export format utilities
-export { 
+export {
   normalizeBinaryValue,
   binaryToHex,
   binaryToDecimal,
-  binaryToAscii
+  binaryToAscii,
 } from './format';
 
 // Re-export signal value utility

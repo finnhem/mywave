@@ -278,7 +278,7 @@ declare global {
     updateDisplayedSignals?: () => void;
     SignalRow?: {
       activeSignalName?: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   }
 }

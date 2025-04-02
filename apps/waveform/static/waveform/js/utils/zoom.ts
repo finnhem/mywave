@@ -4,9 +4,9 @@
  * @module utils/zoom
  */
 
-import type { TimePoint } from '../types';
-import { eventManager } from '../services/events';
 import { viewport } from '../core/viewport';
+import { eventManager } from '../services/events';
+import type { TimePoint } from '../types';
 
 /**
  * Calculates the minimum time delta between consecutive time points.
@@ -84,23 +84,51 @@ export function initializeZoomHandlers(canvas: HTMLCanvasElement): void {
     const wheelEvent = event as WheelEvent;
     // Prevent default scrolling behavior
     wheelEvent.preventDefault();
-    
+
     // Get canvas dimensions
     const rect = canvas.getBoundingClientRect();
-    
+
     // Calculate relative position of the cursor within the canvas
     const x = wheelEvent.clientX - rect.left;
     const xRatio = x / rect.width;
-    
+
     // Calculate the time point under the cursor
     const visibleRange = viewport.getVisibleRange();
     const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
-    
+
     // Calculate new zoom level based on wheel delta
     const currentZoom = viewport.zoomLevel;
     const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
-    
+
     // Apply zoom centered on the cursor position
     viewport.setZoom(newZoom, centerTime);
   });
+}
+
+// Add event listener for mouse wheel zoom on a canvas element
+export function enableWheelZoom(canvas: HTMLCanvasElement): void {
+  const _wheelHandler = (wheelEvent: WheelEvent) => {
+    // Prevent default scrolling behavior
+    wheelEvent.preventDefault();
+
+    // Get canvas dimensions
+    const rect = canvas.getBoundingClientRect();
+
+    // Calculate relative position of the cursor within the canvas
+    const x = wheelEvent.clientX - rect.left;
+    const xRatio = x / rect.width;
+
+    // Calculate the time point under the cursor
+    const visibleRange = viewport.getVisibleRange();
+    const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
+
+    // Calculate new zoom level based on wheel delta
+    const currentZoom = viewport.zoomLevel;
+    const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
+
+    // Apply zoom centered on the cursor position
+    viewport.setZoom(newZoom, centerTime);
+  };
+
+  // ... existing code ...
 }

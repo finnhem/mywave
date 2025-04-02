@@ -3,7 +3,7 @@
  */
 
 import { cursor } from '../core/cursor';
-import { eventManager } from '../services/events';
+import { type CanvasClickEvent, type SignalSelectEvent, eventManager } from '../services/events';
 import type { Signal } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
 import { drawWaveform } from '../ui/waveform';
@@ -128,22 +128,13 @@ export class SignalRow {
   /**
    * Handles global signal activation events
    */
-  private handleGlobalSignalActivation(event: any): void {
-    // Skip responding to events that we just emitted ourselves to prevent infinite recursion
-    if (event._isInternal) {
-      return;
-    }
-
-    // If this is our signal and it's being activated, activate this row
-    if (event.signal.name === this.signal.name && event.active) {
+  private handleGlobalSignalActivation(event: SignalSelectEvent): void {
+    // If this is our signal, activate this row
+    if (event.signalName === this.signal.name) {
       this.activate();
     }
-    // If this is our signal and it's being deactivated, deactivate this row
-    else if (event.signal.name === this.signal.name && !event.active) {
-      this.deactivate();
-    }
-    // If another signal is being activated, deactivate this row
-    else if (event.active && this.isActive) {
+    // If another signal is being selected and this row is active, deactivate this row
+    else if (this.isActive) {
       this.deactivate();
     }
   }
@@ -164,7 +155,7 @@ export class SignalRow {
     });
 
     // Register canvas click handler through the event system
-    eventManager.on('canvas-click', (event: any) => {
+    eventManager.on('canvas-click', (event: CanvasClickEvent) => {
       // Skip internal events to prevent recursion
       if (event._isInternal) {
         return;
@@ -287,23 +278,23 @@ export class SignalRow {
   }
 
   /**
-   * Cleans up resources used by the row
+   * Clean up and destroy the row
    */
   destroy(): void {
     // Unregister from event system
     eventManager.off('signal-select', this.handleGlobalSignalActivation.bind(this));
-    
+
     // Cleanup DOM event listeners
     if (this.element) {
       eventManager.cleanupElement(this.element);
     }
-    
+
     // Destroy child components
     this.nameCell.destroy();
     this.valueCell.destroy();
     this.radixCell.destroy();
     this.waveformCell.destroy();
-    
+
     // Remove from DOM
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);

@@ -88,8 +88,8 @@ export function clearAndRedraw(canvas: HTMLCanvasElement): void {
   }
 
   // Get the signal data from the canvas
-  const signalData = (canvas as any).signalData;
-  const signal = (canvas as any).signal;
+  const signalData = (canvas as HTMLCanvasElement & { signalData?: TimePoint[] }).signalData;
+  const signal = (canvas as HTMLCanvasElement & { signal?: Signal }).signal;
 
   if (!signalData || !signal) {
     // Just clear the canvas if no data is available
@@ -268,7 +268,7 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   }
 
   // Draw data buses and transitions
-  let lastX = 0;
+  let _lastX = 0;
 
   for (let i = 0; i < visibleData.length; i++) {
     const point = visibleData[i];
@@ -323,7 +323,7 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
       );
     }
 
-    lastX = x;
+    _lastX = x;
   }
 
   ctx.restore();
@@ -433,10 +433,10 @@ function calculateTimeInterval(duration: number, width: number): number {
   const rawInterval = duration / ticksToShow;
 
   // Calculate a nice-looking interval
-  const magnitude = Math.pow(10, Math.floor(Math.log10(rawInterval)));
+  const magnitude = 10 ** Math.floor(Math.log10(rawInterval));
   const normalized = rawInterval / magnitude;
 
-  let interval;
+  let interval: number;
   if (normalized < 1.5) {
     interval = 1 * magnitude;
   } else if (normalized < 3.5) {

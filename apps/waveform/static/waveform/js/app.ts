@@ -67,7 +67,7 @@ declare global {
     getSignalValueAtTime: (signal: Signal, time: number) => string | undefined;
     cursor: CursorState;
     updateDisplayedSignals?: () => void;
-    SignalRow?: { [key: string]: any; activeSignalName?: string };
+    SignalRow?: { [key: string]: unknown; activeSignalName?: string };
   }
 
   interface HTMLElement {
@@ -455,8 +455,8 @@ export class WaveformViewer {
   private initializeEventHandlers(): void {
     // Register event listeners
     eventManager.on('redraw-request', this.handleRedrawRequest.bind(this));
-    eventManager.on('cursor-change', this.handleCursorChange.bind(this) as any);
-    eventManager.on('radix-change', this.handleRadixChange.bind(this) as any);
+    eventManager.on<CursorChangeEvent>('cursor-change', this.handleCursorChange.bind(this));
+    eventManager.on<RadixChangeEvent>('radix-change', this.handleRadixChange.bind(this));
     eventManager.on('viewport-range-change', this.handleViewportChange.bind(this));
   }
 

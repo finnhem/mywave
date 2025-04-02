@@ -3,7 +3,13 @@
  * @module components/ValueCell
  */
 
-import { type CursorChangeEvent, type CursorTimeChangeEvent, type RadixChangeEvent, eventManager } from '../services/events';
+import {
+  type CursorChangeEvent,
+  type CursorTimeChangeEvent,
+  type RadixChangeEvent,
+  type WaveformEvent,
+  eventManager,
+} from '../services/events';
 import { formatSignalValue } from '../services/radix';
 import { Signal, TimePoint } from '../types';
 import { getSignalValueAtTime } from '../utils/format';
@@ -11,7 +17,11 @@ import { BaseCell } from './BaseCell';
 
 export class ValueCell extends BaseCell {
   private textSpan!: HTMLSpanElement;
-  private eventHandlers: { type: string; handler: any }[] = [];
+  private eventHandlers: Array<
+    | { type: 'cursor-change'; handler: (event: CursorChangeEvent) => void }
+    | { type: 'radix-change'; handler: (event: RadixChangeEvent) => void }
+    | { type: 'cursor-time-change'; handler: (event: CursorTimeChangeEvent) => void }
+  > = [];
   private currentTime = 0;
 
   /**
@@ -33,7 +43,7 @@ export class ValueCell extends BaseCell {
       this.currentTime = event.time;
       this.updateValue();
     };
-    
+
     // Register the handler
     eventManager.on('cursor-change', cursorChangeHandler);
     this.eventHandlers.push({ type: 'cursor-change', handler: cursorChangeHandler });
@@ -68,11 +78,11 @@ export class ValueCell extends BaseCell {
    * Updates the displayed value using the current cursor time
    */
   private updateValue(): void {
-    if (this.signal && this.signal.data && this.signal.data.length > 0) {
+    if (this.signal?.data && this.signal.data.length > 0) {
       try {
         // Get the value at the current time
         const value = getSignalValueAtTime(this.signal, this.currentTime);
-        
+
         if (value !== undefined) {
           // Format the value based on the signal's radix preference
           // Pass the signal object itself, not just the name
@@ -93,9 +103,19 @@ export class ValueCell extends BaseCell {
    * Clean up event listeners when the cell is destroyed
    */
   destroy(): void {
-    // Remove all event listeners
+    // Remove all event listeners - using a switch to handle each handler properly
     for (const handler of this.eventHandlers) {
-      eventManager.off(handler.type as any, handler.handler);
+      switch (handler.type) {
+        case 'cursor-change':
+          eventManager.off('cursor-change', handler.handler);
+          break;
+        case 'radix-change':
+          eventManager.off('radix-change', handler.handler);
+          break;
+        case 'cursor-time-change':
+          eventManager.off('cursor-time-change', handler.handler);
+          break;
+      }
     }
     this.eventHandlers = [];
 

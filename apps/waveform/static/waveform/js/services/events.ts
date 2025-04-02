@@ -4,8 +4,8 @@
  * @module services/events
  */
 
+import type { Signal, TimePoint } from '../types';
 import type { ViewportRange } from '../types';
-import type { Signal } from '../types';
 
 /**
  * Base event interface that all event types extend
@@ -174,7 +174,10 @@ type EventHandler<T extends WaveformEvent> = (event: T) => void;
  */
 class EventManager {
   /** Map of event type to handlers */
-  private handlers: Map<string, EventHandler<any>[]> = new Map();
+  private handlers: Map<string, EventHandler<WaveformEvent>[]> = new Map<
+    string,
+    EventHandler<WaveformEvent>[]
+  >();
 
   /**
    * Registers an event handler for a specific event type
@@ -188,7 +191,8 @@ class EventManager {
 
     const handlers = this.handlers.get(type);
     if (handlers) {
-      handlers.push(handler);
+      // Type assertion needed here as we know the handler is compatible
+      handlers.push(handler as unknown as EventHandler<WaveformEvent>);
     }
   }
 
@@ -204,7 +208,7 @@ class EventManager {
       return;
     }
 
-    const index = handlers.indexOf(handler);
+    const index = handlers.indexOf(handler as unknown as EventHandler<WaveformEvent>);
 
     if (index !== -1) {
       handlers.splice(index, 1);
@@ -252,11 +256,15 @@ class EventManager {
    * @param eventType - DOM event type (e.g. 'click', 'mousedown')
    * @param handler - Event handler function
    */
-  addDOMListener(element: HTMLElement, eventType: string, handler: EventListenerOrEventListenerObject): void {
+  addDOMListener(
+    element: HTMLElement,
+    eventType: string,
+    handler: EventListenerOrEventListenerObject
+  ): void {
     if (!element._eventListeners) {
       element._eventListeners = [];
     }
-    
+
     element.addEventListener(eventType, handler);
     element._eventListeners.push({ type: eventType, handler });
   }
@@ -285,9 +293,9 @@ declare global {
       type: string;
       handler: EventListenerOrEventListenerObject;
     }>;
-    signalData?: any;
+    signalData?: TimePoint[];
     signalName?: string;
-    signal?: any;
+    signal?: Signal;
     valueDisplay?: HTMLElement;
   }
 }

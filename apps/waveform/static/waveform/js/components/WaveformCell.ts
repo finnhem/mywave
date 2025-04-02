@@ -3,9 +3,9 @@
  * @module components/WaveformCell
  */
 
-import { type RedrawRequestEvent, eventManager } from '../services/events';
-import type { Signal, TimePoint } from '../types';
 import { viewport } from '../core/viewport';
+import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '../services/events';
+import type { Signal, TimePoint } from '../types';
 import { drawWaveform } from '../ui/waveform';
 import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
@@ -21,7 +21,7 @@ export class WaveformCell extends BaseCell {
   private _resizeObserver: ResizeObserver | null = null;
 
   // Store handler references for cleanup
-  private _canvasClickHandler: ((event: any) => void) | null = null;
+  private _canvasClickHandler: ((event: CanvasClickEvent) => void) | null = null;
   private _redrawHandler: ((event: RedrawRequestEvent) => void) | null = null;
 
   /**
@@ -78,7 +78,7 @@ export class WaveformCell extends BaseCell {
       });
 
       // Set up handlers for application events
-      this._canvasClickHandler = (event: any) => {
+      this._canvasClickHandler = (event: CanvasClickEvent) => {
         // Skip internal events to prevent recursion
         if (event._isInternal || event.signalName !== this.signal.name) {
           return;
@@ -133,7 +133,7 @@ export class WaveformCell extends BaseCell {
             // Emit canvas resize event
             eventManager.emit({
               type: 'redraw-request',
-              targetCanvas: this._canvas
+              targetCanvas: this._canvas,
             });
 
             // Mark as mounted and draw
@@ -174,22 +174,22 @@ export class WaveformCell extends BaseCell {
       const wheelEvent = event as WheelEvent;
       // Prevent default scrolling behavior
       wheelEvent.preventDefault();
-      
+
       // Get canvas dimensions
       const rect = canvas.getBoundingClientRect();
-      
+
       // Calculate relative position of the cursor within the canvas
       const x = wheelEvent.clientX - rect.left;
       const xRatio = x / rect.width;
-      
+
       // Calculate the time point under the cursor
       const visibleRange = viewport.getVisibleRange();
       const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
-      
+
       // Calculate new zoom level based on wheel delta
       const currentZoom = viewport.zoomLevel;
       const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
-      
+
       // Apply zoom centered on the cursor position
       viewport.setZoom(newZoom, centerTime);
     });

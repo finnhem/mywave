@@ -36,7 +36,8 @@ export function getSignalValueAtTime(signal: Signal, time: number): string | und
 
     if (midTime === time) {
       return signal.data[mid].value;
-    } else if (midTime < time) {
+    }
+    if (midTime < time) {
       low = mid + 1;
     } else {
       high = mid - 1;
@@ -76,7 +77,7 @@ export function normalizeBinaryValue(value: string): string {
 
   // Try to convert from number to binary
   const num = Number.parseInt(value, 10);
-  if (!isNaN(num)) {
+  if (!Number.isNaN(num)) {
     return num.toString(2);
   }
 
@@ -130,7 +131,7 @@ export function binaryToDecimal(binaryStr: string): string {
   const decimal = Number.parseInt(normalized, 2);
 
   // Check for conversion errors
-  if (isNaN(decimal)) {
+  if (Number.isNaN(decimal)) {
     return 'error';
   }
 
