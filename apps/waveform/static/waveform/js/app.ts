@@ -6,34 +6,26 @@
 
 import { cursor } from './core/cursor';
 import { viewport } from './core/viewport';
-import { cacheManager } from './services/cache';
-import {
-  type CursorChangeEvent,
-  type RadixChangeEvent,
-  type SignalSelectEvent,
-  eventManager,
-} from './services/events';
+import { 
+  CursorController, 
+  KeyboardController, 
+  SignalRenderer,
+  ZoomController 
+} from './controllers';
 import { HierarchyManager } from './services/hierarchy';
-import { preloader } from './services/preload';
-import {
-  cycleRadix,
-  formatSignalValue,
-  getSignalRadix,
-  signalPreferences,
-  updateSignalRadix,
-} from './services/radix';
-import {
-  type CursorState,
-  type Signal,
-  type SignalData,
-  SignalPreference,
-  type SignalPreferences,
-  type TimePoint,
-  type Timescale,
-  ViewportRange,
+import { signalPreferences, formatSignalValue } from './services/radix';
+import type {
+  CursorState,
+  Signal,
+  SignalData,
+  SignalPreferences,
+  TimePoint,
+  Timescale,
+  WaveformViewerOptions,
 } from './types';
-import { clearAndRedraw, drawTimeline, drawWaveform } from './ui/waveform';
+import { clearAndRedraw, drawTimeline } from './ui/waveform';
 import { calculateMaxZoom, calculateMinTimeDelta, getSignalValueAtTime } from './utils';
+import { eventManager } from './services/events';
 
 // Re-export from hierarchy.ts to avoid circular dependency
 type ExtendedHierarchyNode = {
@@ -50,43 +42,28 @@ type ExtendedHierarchyNode = {
   visible?: boolean;
 };
 
-/**
- * Configuration options for the waveform viewer
- */
-export interface WaveformViewerOptions {
-  /** Container element to render the viewer in */
-  container: HTMLElement;
-  /** Width of the viewer */
-  width: number;
-  /** Height of the viewer */
-  height: number;
-  /** Time scale for displaying time values */
-  timeScale: number;
-}
-
 // Extend Window interface with our custom properties
 declare global {
   interface Window {
-    timescale: Timescale;
+    timescale?: {
+      unit: string;
+      value: number;
+    };
     signalPreferences: SignalPreferences;
     formatSignalValue: (value: string, signal: Signal) => string;
     clearAndRedraw: (canvas: HTMLCanvasElement) => void;
     getSignalValueAtTime: (signal: Signal, time: number) => string | undefined;
     cursor: CursorState;
     updateDisplayedSignals?: () => void;
-    SignalRow?: { [key: string]: unknown; activeSignalName?: string };
+    SignalRow?: {
+      activeSignalName?: string | null;
+      [key: string]: unknown;
+    };
+    signals?: Signal[];
   }
 
   interface HTMLElement {
     hierarchyRoot?: ExtendedHierarchyNode;
-  }
-
-  interface HTMLCanvasElement {
-    signalData?: TimePoint[];
-    signal?: Signal;
-    valueDisplay?: HTMLElement;
-    signalName?: string;
-    redraw?: () => void;
   }
 }
 
@@ -100,6 +77,18 @@ export class WaveformViewer {
 
   /** Hierarchy manager */
   private hierarchyManager: HierarchyManager;
+
+  /** Signal renderer */
+  private signalRenderer: SignalRenderer | null = null;
+
+  /** Cursor controller */
+  private cursorController: CursorController | null = null;
+
+  /** Keyboard controller */
+  private keyboardController: KeyboardController | null = null;
+
+  /** Zoom controller */
+  private zoomController: ZoomController | null = null;
 
   /** Whether the viewer has been initialized */
   private initialized = false;
@@ -132,82 +121,96 @@ export class WaveformViewer {
   private initialize(): void {
     if (this.initialized) return;
 
-    const { container, width, height } = this.options;
+    const { container, width } = this.options;
 
-    // Set container styles
-    container.style.width = `${width}px`;
-    container.style.height = `${height}px`;
-    container.style.position = 'relative';
-    container.classList.add('waveform-viewer');
-
-    // Create main layout
-    const layout = document.createElement('div');
-    layout.classList.add('waveform-layout');
-    layout.style.display = 'grid';
-    layout.style.gridTemplateColumns = '250px 1fr';
-    layout.style.height = '100%';
-    layout.style.width = '100%';
-    layout.style.overflow = 'hidden';
-
-    // Create signal tree panel
-    const treePanel = document.createElement('div');
-    treePanel.classList.add('signal-tree-panel');
-    treePanel.style.borderRight = '1px solid #e2e8f0';
-    treePanel.style.overflow = 'auto';
+    // Get the existing signal-selector-container
+    const signalSelectorContainer = document.getElementById('signal-selector-container');
+    if (!signalSelectorContainer) {
+      console.error('Signal selector container not found');
+      return;
+    }
 
     // Create tree container
     const tree = document.createElement('div');
     tree.id = 'signal-tree';
     tree.classList.add('signal-tree');
-    treePanel.appendChild(tree);
 
-    // Create waveform panel
-    const waveformPanel = document.createElement('div');
-    waveformPanel.classList.add('waveform-panel');
-    waveformPanel.style.display = 'flex';
-    waveformPanel.style.flexDirection = 'column';
-    waveformPanel.style.overflow = 'hidden';
+    // Clear any existing content and append the tree
+    const existingTreeElement = signalSelectorContainer.querySelector('#signal-tree');
+    if (existingTreeElement) {
+      // Use the existing tree element if available
+      this.elements.tree = existingTreeElement as HTMLElement;
+    } else {
+      // Otherwise append the new tree to the container
+      const treePanel =
+        signalSelectorContainer.querySelector('.signal-tree-panel') || signalSelectorContainer;
+      treePanel.appendChild(tree);
+      this.elements.tree = tree;
+    }
 
-    // Create timeline
-    const timelineContainer = document.createElement('div');
-    timelineContainer.classList.add('timeline-container');
-    timelineContainer.style.height = '30px';
-    timelineContainer.style.borderBottom = '1px solid #e2e8f0';
+    // Set container styles for waveform viewer
+    container.style.position = 'relative';
+    container.classList.add('waveform-viewer');
 
-    const timeline = document.createElement('canvas');
-    timeline.id = 'timeline';
-    timeline.width = width - 250;
-    timeline.height = 30;
-    timelineContainer.appendChild(timeline);
+    // Get or create waveform components
+    let waveformContainer = document.getElementById('waveform-rows-container');
+    let timeline = document.getElementById('timeline') as HTMLCanvasElement;
 
-    // Create waveform container
-    const waveformContainer = document.createElement('div');
-    waveformContainer.id = 'waveform-rows-container';
-    waveformContainer.classList.add('waveform-rows-container');
-    waveformContainer.style.overflow = 'auto';
-    waveformContainer.style.flex = '1';
+    // If waveform container doesn't exist, create it
+    if (!waveformContainer) {
+      // Create waveform container
+      waveformContainer = document.createElement('div');
+      waveformContainer.id = 'waveform-rows-container';
+      waveformContainer.classList.add('waveform-rows-container');
+      waveformContainer.style.overflow = 'auto';
+      waveformContainer.style.flex = '1';
+      container.appendChild(waveformContainer);
+    }
 
-    // Assemble panel
-    waveformPanel.appendChild(timelineContainer);
-    waveformPanel.appendChild(waveformContainer);
-
-    // Assemble layout
-    layout.appendChild(treePanel);
-    layout.appendChild(waveformPanel);
-
-    // Add to container
-    container.appendChild(layout);
+    // If timeline doesn't exist, create it
+    if (!timeline) {
+      const timelineContainer = document.getElementById('timeline-container');
+      if (timelineContainer) {
+        timeline = document.createElement('canvas');
+        timeline.id = 'timeline';
+        timeline.width = timelineContainer.clientWidth || width;
+        timeline.height = 30;
+        timelineContainer.appendChild(timeline);
+      }
+    }
 
     // Store element references
-    this.elements.tree = tree;
     this.elements.waveformContainer = waveformContainer;
     this.elements.timeline = timeline;
 
-    // Initialize event handlers
-    this.initializeEventHandlers();
+    // Initialize controllers
+    if (waveformContainer) {
+      this.signalRenderer = new SignalRenderer(waveformContainer);
+      this.cursorController = new CursorController();
+      this.keyboardController = new KeyboardController();
+      this.zoomController = new ZoomController();
+    }
 
     // Initialize cache-related components
     this.initializeCache();
+
+    // Register click handlers for the show/hide all buttons
+    const showAllButton = document.getElementById('select-all');
+    const hideAllButton = document.getElementById('deselect-all');
+
+    if (showAllButton) {
+      showAllButton.addEventListener('click', () => {
+        // Logic to show all signals
+        console.log('Show all clicked');
+      });
+    }
+
+    if (hideAllButton) {
+      hideAllButton.addEventListener('click', () => {
+        // Logic to hide all signals
+        console.log('Hide all clicked');
+      });
+    }
 
     // Mark as initialized
     this.initialized = true;
@@ -217,342 +220,33 @@ export class WaveformViewer {
    * Initializes the caching system
    */
   private initializeCache(): void {
-    // Add event handlers for cache invalidation
-    this.initializeSignalSelectHandler();
-    this.initializeViewportChangeHandler();
-
-    // Add periodic cache maintenance
-    setInterval(() => {
-      // Log cache statistics to console
-      console.debug('Cache statistics:', cacheManager.getAllStats());
-    }, 60000); // Every minute
-  }
-
-  /**
-   * Initializes signal select event handler for cache invalidation
-   */
-  private initializeSignalSelectHandler(): void {
-    eventManager.on<SignalSelectEvent>('signal-select', (event) => {
-      if (event.signalName) {
-        // Invalidate caches related to this signal
-        cacheManager.invalidate('waveforms', event.signalName);
-        cacheManager.invalidate('waveforms', `signal_data_${event.signalName}`);
-        cacheManager.invalidate('computedValues', event.signalName);
-      }
-    });
-  }
-
-  /**
-   * Initializes viewport change event handler for cache invalidation
-   */
-  private initializeViewportChangeHandler(): void {
-    let lastViewportChangeTime = 0;
-    eventManager.on('viewport-range-change', () => {
-      const now = Date.now();
-
-      // Don't invalidate too frequently
-      if (now - lastViewportChangeTime > 1000) {
-        lastViewportChangeTime = now;
-
-        // Since viewport changed drastically, previous rendered waveforms might not be useful
-        // Just clear the entire waveforms cache after a viewport zoom/pan operation
-        cacheManager.clear('waveforms');
-      }
-    });
-  }
-
-  /**
-   * Loads signal data into the viewer.
-   * @param data - Signal data to load
-   */
-  public loadData(data: SignalData): void {
-    this.signalData = data;
-
-    // Register global window timescale
-    window.timescale = data.timescale;
-
-    // Preload dimensions for all signals
-    preloader.preloadDimensions(data.signals);
-
-    // Build hierarchy
-    const root = this.hierarchyManager.buildHierarchy(data.signals);
-
-    // Store root on tree element
-    if (this.elements.tree) {
-      this.elements.tree.hierarchyRoot = root;
-
-      // Create and append tree elements
-      const treeElement = this.hierarchyManager.createTreeElement(root);
-      this.elements.tree.innerHTML = '';
-      this.elements.tree.appendChild(treeElement);
-
-      // Get visible signals for preloading
-      const visibleSignals = this.collectVisibleSignals(root);
-
-      // Preload the first set of signals that will be visible
-      preloader.preloadSignals(visibleSignals.slice(0, 20));
-
-      // Precompute common time values for cursor positions
-      const visibleRange = viewport.getVisibleRange();
-      const precomputeTimes = [
-        visibleRange.start,
-        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.25,
-        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.5,
-        visibleRange.start + (visibleRange.end - visibleRange.start) * 0.75,
-        visibleRange.end,
-      ];
-
-      // Preload computed values for visible signals
-      preloader.preloadComputedValues(visibleSignals, precomputeTimes);
-    }
-
     // Handle signals and initialize timeline
-    if (data.signals.length > 0) {
-      // Update displayed signals with all signals initially
-      this.updateDisplayedSignals();
-
-      // Find the global time range across all signals
-      let globalStartTime = Number.POSITIVE_INFINITY;
-      let globalEndTime = Number.NEGATIVE_INFINITY;
-
-      // Collect all signal data points for zoom calculation
-      const allDataPoints: Array<{ time: number }> = [];
-
-      for (const signal of data.signals) {
-        if (signal.data && signal.data.length > 0) {
-          globalStartTime = Math.min(globalStartTime, signal.data[0].time);
-          globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
-          allDataPoints.push(...signal.data);
-        }
-      }
-
-      // Sort all data points by time to ensure proper delta calculation
-      allDataPoints.sort((a, b) => a.time - b.time);
-
-      // Only proceed if we found valid time range
-      if (
-        globalStartTime !== Number.POSITIVE_INFINITY &&
-        globalEndTime !== Number.NEGATIVE_INFINITY &&
-        this.elements.timeline
-      ) {
-        // Initialize viewport with total time range
-        viewport.setTotalTimeRange(globalStartTime, globalEndTime);
-
-        // Calculate minimum time delta and update max zoom
-        if (allDataPoints.length > 0) {
-          const minTimeDelta = calculateMinTimeDelta(allDataPoints);
-
-          if (minTimeDelta) {
-            const totalTimeRange = globalEndTime - globalStartTime;
-            const maxZoom = calculateMaxZoom(
-              minTimeDelta,
-              this.elements.timeline.clientWidth,
-              totalTimeRange
-            );
-            viewport.setMaxZoom(maxZoom);
-          }
-        }
-
-        // Initialize zoom to 1x
-        viewport.setZoom(1);
-
-        // Initialize cursor
-        cursor.canvases.push(this.elements.timeline);
-        cursor.startTime = globalStartTime;
-        cursor.endTime = globalEndTime;
-        cursor.currentTime = globalStartTime;
-
-        this.elements.timeline.onclick = this.handleTimelineClick.bind(this);
-
-        // Draw the timeline
-        if (drawTimeline) {
-          drawTimeline(this.elements.timeline);
-        }
-
-        // Update zoom display
-        this.updateZoomDisplay();
-      }
-    }
-
-    // Set global window properties for easy access
+    window.signalPreferences = signalPreferences;
     window.formatSignalValue = formatSignalValue;
     window.clearAndRedraw = clearAndRedraw;
     window.getSignalValueAtTime = getSignalValueAtTime;
     window.cursor = cursor;
-    window.updateDisplayedSignals = this.updateDisplayedSignals.bind(this);
-  }
 
-  /**
-   * Handles clicks on the timeline.
-   * @param event - Mouse event
-   */
-  private handleTimelineClick(event: MouseEvent): void {
-    if (!this.elements.timeline) return;
-
-    // Forward to cursor handler
-    cursor.handleCanvasClick(this.elements.timeline, event.clientX);
-  }
-
-  /**
-   * Updates the display of visible signals.
-   */
-  private updateDisplayedSignals(): void {
-    if (!this.elements.tree || !this.elements.waveformContainer) return;
-
-    const hierarchyRoot = this.elements.tree.hierarchyRoot;
-    if (!hierarchyRoot) return;
-
-    // Get all visible signals
-    const visibleSignals = this.collectVisibleSignals(hierarchyRoot);
-
-    // Store active signal name before clearing the container
-    const _activeSignalName = window.SignalRow?.activeSignalName;
-
-    // Clear the container
-    this.elements.waveformContainer.innerHTML = '';
-
-    // Render all visible signals directly
-    for (const signal of visibleSignals) {
-      this.renderSignalRow(signal, this.elements.waveformContainer);
-    }
-
-    // Record cache performance metrics for this rendering operation
-    const waveformStats = cacheManager.getStats('waveforms');
-    if (waveformStats) {
-      console.debug(
-        'Waveform rendering cache performance:',
-        `${waveformStats.hits}/${waveformStats.gets} hits (${Math.round(
-          (waveformStats.hits / Math.max(waveformStats.gets, 1)) * 100
-        )}%)`
-      );
-    }
-
-    // After rendering current signals, preload the next batch that might become visible
-    setTimeout(() => {
-      if (this.signalData) {
-        // Get all signals not currently visible but might be scrolled to
-        const nextSignalBatch = this.signalData.signals
-          .filter((s) => !visibleSignals.some((vs) => vs.name === s.name))
-          .slice(0, 10);
-
-        if (nextSignalBatch.length > 0) {
-          preloader.preloadSignals(nextSignalBatch);
-        }
-      }
-    }, 100);
-  }
-
-  /**
-   * Renders a signal row in the waveform view.
-   * @param signal - Signal to render
-   * @param container - Container element
-   */
-  private renderSignalRow(signal: Signal, container: HTMLElement): void {
-    // Create row container
-    const row = document.createElement('div');
-    row.classList.add('signal-row');
-    row.setAttribute('data-signal-name', signal.name);
-
-    // Create name cell
-    const nameCell = document.createElement('div');
-    nameCell.classList.add('name-cell');
-    nameCell.textContent = signal.name.split('.').pop() || signal.name;
-
-    // Create radix cell
-    const radixCell = document.createElement('div');
-    radixCell.classList.add('radix-cell');
-    radixCell.textContent = getSignalRadix(signal.name).toUpperCase();
-    radixCell.addEventListener('click', () => {
-      cycleRadix(signal.name);
-    });
-
-    // Create value cell
-    const valueCell = document.createElement('div');
-    valueCell.classList.add('value-cell');
-
-    if (cursor.currentTime !== undefined && signal.data) {
-      const value = getSignalValueAtTime(signal, cursor.currentTime);
-      if (value !== undefined) {
-        valueCell.textContent = formatSignalValue(value, signal);
-      }
-    }
-
-    // Create waveform cell
-    const waveformCell = document.createElement('div');
-    waveformCell.classList.add('waveform-cell');
-
-    const waveformCanvas = document.createElement('canvas');
-    waveformCanvas.classList.add('waveform-canvas');
-    waveformCanvas.setAttribute('data-signal-name', signal.name);
-    waveformCanvas.signalData = signal.data;
-    waveformCanvas.signal = signal;
-    waveformCanvas.valueDisplay = valueCell;
-
-    const canvasContainer = document.createElement('div');
-    canvasContainer.classList.add('waveform-canvas-container');
-    canvasContainer.appendChild(waveformCanvas);
-    waveformCell.appendChild(canvasContainer);
-
-    // Handle canvas click
-    waveformCanvas.addEventListener('click', (event) => {
-      cursor.handleCanvasClick(waveformCanvas, event.clientX);
-    });
-
-    // Add to cursor's canvas list
-    cursor.canvases.push(waveformCanvas);
-
-    // Assemble row
-    row.appendChild(nameCell);
-    row.appendChild(radixCell);
-    row.appendChild(valueCell);
-    row.appendChild(waveformCell);
-
-    // Add to container
-    container.appendChild(row);
-  }
-
-  /**
-   * Collects all visible signals from the hierarchy.
-   * @param node - Root hierarchy node
-   * @returns Array of visible signals
-   */
-  private collectVisibleSignals(node: ExtendedHierarchyNode): Signal[] {
-    let signals: Signal[] = [];
-
-    if (node.isSignal && node.visible && node.signalData) {
-      signals.push(node.signalData);
-    }
-
-    // Handle children as Map
-    if (node.children instanceof Map) {
-      for (const child of node.children.values()) {
-        signals = signals.concat(this.collectVisibleSignals(child as ExtendedHierarchyNode));
-      }
-    }
-
-    return signals;
-  }
-
-  /**
-   * Updates the zoom display in the UI.
-   */
-  private updateZoomDisplay(): void {
-    const zoomDisplay = document.getElementById('zoom-display');
-
-    if (zoomDisplay) {
-      zoomDisplay.textContent = `${viewport.zoomLevel.toFixed(1)}x`;
-    }
-  }
-
-  /**
-   * Initializes event handlers for the application.
-   */
-  private initializeEventHandlers(): void {
-    // Register event listeners
+    // Set up event handlers for redrawing
     eventManager.on('redraw-request', this.handleRedrawRequest.bind(this));
-    eventManager.on<CursorChangeEvent>('cursor-change', this.handleCursorChange.bind(this));
-    eventManager.on<RadixChangeEvent>('radix-change', this.handleRadixChange.bind(this));
     eventManager.on('viewport-range-change', this.handleViewportChange.bind(this));
+
+    // Set up update displayed signals callback
+    window.updateDisplayedSignals = () => {
+      if (this.elements.tree?.hierarchyRoot && this.signalRenderer) {
+        this.signalRenderer.updateDisplayedSignals(this.elements.tree.hierarchyRoot);
+      } else {
+        console.warn('Cannot update displayed signals: tree or renderer not initialized');
+      }
+    };
+  }
+
+  /**
+   * Handles viewport range change events.
+   */
+  private handleViewportChange(): void {
+    // Redraw all canvases
+    this.handleRedrawRequest();
   }
 
   /**
@@ -568,56 +262,177 @@ export class WaveformViewer {
   }
 
   /**
-   * Handles cursor change events.
-   * @param event - Cursor change event
+   * Loads signal data into the viewer.
+   * @param data - Signal data to load
    */
-  private handleCursorChange(event: CursorChangeEvent): void {
-    // Update value cells
-    const valueCells = document.querySelectorAll<HTMLElement>('.value-cell');
-    const rows = document.querySelectorAll<HTMLElement>('.signal-row');
+  public loadData(data: SignalData): void {
+    try {
+      // Validate incoming data
+      if (!data) {
+        console.error('Received null or undefined data');
+        return;
+      }
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const valueCell = valueCells[i];
-      const signalName = row.getAttribute('data-signal-name');
+      // Validate signals array
+      if (!data.signals || !Array.isArray(data.signals)) {
+        console.error('Invalid signals data format: missing or non-array signals property');
+        return;
+      }
 
-      if (signalName && this.signalData) {
-        const signal = this.signalData.signals.find((s) => s.name === signalName);
+      // Validate timescale
+      if (!data.timescale || typeof data.timescale !== 'object') {
+        console.warn('Invalid timescale format, using default');
+        data.timescale = { value: 1, unit: 'ns' };
+      }
 
-        if (signal) {
-          const value = getSignalValueAtTime(signal, event.time);
+      this.signalData = data;
 
-          if (value !== undefined) {
-            valueCell.textContent = formatSignalValue(value, signal);
-          }
+      // Register global window timescale
+      window.timescale = data.timescale;
+
+      // Set up signal renderer
+      if (this.signalRenderer) {
+        this.signalRenderer.setSignalData(data.signals);
+      }
+
+      // Make signals globally available 
+      window.signals = data.signals;
+
+      // Build hierarchy
+      const root = this.hierarchyManager.buildHierarchy(data.signals);
+
+      // Ensure all nodes are expanded by default
+      this.expandAllNodes(root);
+
+      // Store root on tree element
+      if (this.elements.tree) {
+        this.elements.tree.hierarchyRoot = root;
+
+        // Create and append tree elements
+        const treeElement = this.hierarchyManager.createTreeElement(root);
+        this.elements.tree.innerHTML = '';
+        this.elements.tree.appendChild(treeElement);
+
+        // Update displayed signals
+        if (this.signalRenderer) {
+          this.signalRenderer.updateDisplayedSignals(root);
         }
       }
+
+      // Handle signals and initialize timeline
+      if (data.signals.length > 0) {
+        // Find the global time range across all signals
+        let globalStartTime = Number.POSITIVE_INFINITY;
+        let globalEndTime = Number.NEGATIVE_INFINITY;
+
+        // Collect all signal data points for zoom calculation
+        const allDataPoints: Array<{ time: number }> = [];
+
+        for (const signal of data.signals) {
+          if (signal.data && signal.data.length > 0) {
+            globalStartTime = Math.min(globalStartTime, signal.data[0].time);
+            globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
+            allDataPoints.push(...signal.data);
+          }
+        }
+
+        // Sort all data points by time to ensure proper delta calculation
+        allDataPoints.sort((a, b) => a.time - b.time);
+
+        // Only proceed if we found valid time range
+        if (
+          globalStartTime !== Number.POSITIVE_INFINITY &&
+          globalEndTime !== Number.NEGATIVE_INFINITY &&
+          this.elements.timeline
+        ) {
+          // Initialize viewport with total time range
+          viewport.setTotalTimeRange(globalStartTime, globalEndTime);
+
+          // Calculate minimum time delta and update max zoom
+          if (allDataPoints.length > 0) {
+            const minTimeDelta = calculateMinTimeDelta(allDataPoints);
+
+            if (minTimeDelta) {
+              const totalTimeRange = globalEndTime - globalStartTime;
+              const maxZoom = calculateMaxZoom(
+                minTimeDelta,
+                this.elements.timeline.clientWidth,
+                totalTimeRange
+              );
+              viewport.setMaxZoom(maxZoom);
+            }
+          }
+
+          // Initialize zoom to 1x
+          viewport.setZoom(1);
+
+          // Initialize cursor
+          cursor.canvases.push(this.elements.timeline);
+          cursor.startTime = globalStartTime;
+          cursor.endTime = globalEndTime;
+          cursor.currentTime = globalStartTime;
+
+          this.elements.timeline.onclick = this.handleTimelineClick.bind(this);
+
+          // Draw the timeline
+          if (drawTimeline) {
+            drawTimeline(this.elements.timeline);
+          }
+
+          // Update zoom display
+          if (this.zoomController) {
+            this.zoomController.updateZoomDisplay();
+          }
+        } else {
+          console.warn('Invalid time range or no timeline element');
+          // Set default time range if we couldn't calculate it
+          if (this.elements.timeline) {
+            const defaultStart = 0;
+            const defaultEnd = 100;
+            viewport.setTotalTimeRange(defaultStart, defaultEnd);
+            cursor.startTime = defaultStart;
+            cursor.endTime = defaultEnd;
+            cursor.currentTime = defaultStart;
+          }
+        }
+      } else {
+        console.warn('No signal data available to display');
+      }
+    } catch (error) {
+      console.error('Error loading signal data:', error);
     }
   }
 
   /**
-   * Handles radix change events.
-   * @param event - Radix change event
+   * Handles clicks on the timeline.
+   * @param event - Mouse event
    */
-  private handleRadixChange(event: RadixChangeEvent): void {
-    // Update radix cell display
-    const row = document.querySelector(`.signal-row[data-signal-name="${event.signalName}"]`);
+  private handleTimelineClick(event: MouseEvent): void {
+    if (!this.elements.timeline) return;
 
-    if (row) {
-      const radixCell = row.querySelector('.radix-cell');
+    // Forward to cursor handler
+    cursor.handleCanvasClick(this.elements.timeline, event.clientX);
+  }
 
-      if (radixCell) {
-        radixCell.textContent = event.radix.toUpperCase();
+  /**
+   * Recursively expands all nodes in the hierarchy
+   * @param node - The hierarchy node to expand
+   */
+  private expandAllNodes(node: ExtendedHierarchyNode): void {
+    // Mark the node as expanded
+    node.expanded = true;
+
+    // Set signal visibility
+    if (node.isSignal) {
+      node.visible = true;
+    }
+
+    // Process all children
+    if (node.children instanceof Map) {
+      for (const child of node.children.values()) {
+        this.expandAllNodes(child as ExtendedHierarchyNode);
       }
     }
-  }
-
-  /**
-   * Handles viewport range change events.
-   */
-  private handleViewportChange(): void {
-    // Redraw all canvases
-    this.handleRedrawRequest();
   }
 }
 
@@ -628,9 +443,3 @@ window.formatSignalValue = formatSignalValue;
 window.clearAndRedraw = clearAndRedraw;
 window.getSignalValueAtTime = getSignalValueAtTime;
 window.cursor = cursor;
-
-// Add updateDisplayedSignals to window object
-window.updateDisplayedSignals = () => {
-  // This is a placeholder that will be replaced by the actual viewer instance
-  console.warn('updateDisplayedSignals not yet initialized');
-};

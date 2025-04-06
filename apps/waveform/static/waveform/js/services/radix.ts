@@ -5,7 +5,7 @@
  */
 
 import type { Signal, SignalPreference, SignalPreferences } from '../types';
-import { binaryToAscii, binaryToDecimal, binaryToHex, normalizeBinaryValue } from '../utils/format';
+import { binaryToAscii, binaryToDecimal, binaryToHex, normalizeBinaryValue, getSignalValueAtTime } from '../utils/format';
 import { eventManager } from './events';
 
 /**
@@ -18,11 +18,11 @@ export const signalPreferences: SignalPreferences = {};
  * @param signalName - Name of the signal
  * @returns Current radix or default if not set
  */
-export function getSignalRadix(signalName: string): 'hex' | 'binary' | 'decimal' | 'ascii' {
+export function getSignalRadix(signalName: string): 'HEX' | 'BIN' | 'UDEC' | 'SDEC' {
   if (signalPreferences[signalName]) {
     return signalPreferences[signalName].radix;
   }
-  return 'hex'; // Default to hex
+  return 'HEX'; // Default to hex
 }
 
 /**
@@ -32,7 +32,7 @@ export function getSignalRadix(signalName: string): 'hex' | 'binary' | 'decimal'
  */
 export function updateSignalRadix(
   signalName: string,
-  radix: 'hex' | 'binary' | 'decimal' | 'ascii'
+  radix: 'HEX' | 'BIN' | 'UDEC' | 'SDEC'
 ): void {
   // Store previous value for the event
   const previousRadix = getSignalRadix(signalName);
@@ -45,6 +45,48 @@ export function updateSignalRadix(
   } else {
     // Update existing preference
     signalPreferences[signalName].radix = radix;
+  }
+
+  // Update any DOM elements showing this radix directly
+  const radixCells = document.querySelectorAll('.radix-cell');
+  for (const cell of Array.from(radixCells)) {
+    if (cell.getAttribute('data-signal-name') === signalName) {
+      const display = cell.querySelector('.radix-display');
+      if (display) {
+        display.textContent = radix;
+        
+        // Update styling based on new radix
+        display.classList.remove('text-gray-500', 'text-indigo-600', 'text-blue-600', 'text-green-600');
+        const radixStyles: Record<string, string> = {
+          'BIN': 'text-gray-500',
+          'HEX': 'text-indigo-600',
+          'UDEC': 'text-blue-600',
+          'SDEC': 'text-green-600'
+        };
+        display.classList.add(radixStyles[radix]);
+      }
+    }
+  }
+  
+  // Also directly update value cells
+  if (window.signals) {
+    const signal = window.signals.find(s => s.name === signalName);
+    if (signal && window.cursor?.currentTime) {
+      const valueCells = document.querySelectorAll('.value-cell');
+      for (const cell of Array.from(valueCells)) {
+        if (cell.getAttribute('data-signal-name') === signalName) {
+          const value = getSignalValueAtTime(signal, window.cursor.currentTime);
+          if (value !== undefined) {
+            const valueSpan = cell.querySelector('span');
+            if (valueSpan) {
+              valueSpan.textContent = formatSignalValue(value, signal);
+            } else {
+              cell.textContent = formatSignalValue(value, signal);
+            }
+          }
+        }
+      }
+    }
   }
 
   // Emit radix change event
@@ -70,7 +112,7 @@ export function setSignalExpanded(signalName: string, expanded: boolean): void {
   // Create preference object if it doesn't exist
   if (!signalPreferences[signalName]) {
     signalPreferences[signalName] = {
-      radix: 'hex',
+      radix: 'HEX',
       expanded,
     };
   } else {
@@ -121,17 +163,17 @@ export function formatSignalValue(value: string, signal?: Signal): string {
 
   // Format based on radix preference
   switch (radix) {
-    case 'binary':
+    case 'BIN':
       return normalizedBinary.startsWith('0b') ? normalizedBinary : `0b${normalizedBinary}`;
 
-    case 'hex':
+    case 'HEX':
       return binaryToHex(normalizedBinary);
 
-    case 'decimal':
-      return binaryToDecimal(normalizedBinary);
+    case 'UDEC':
+      return binaryToDecimal(normalizedBinary, false); // Unsigned decimal
 
-    case 'ascii':
-      return binaryToAscii(normalizedBinary);
+    case 'SDEC':
+      return binaryToDecimal(normalizedBinary, true); // Signed decimal
 
     default:
       return value;
@@ -146,12 +188,7 @@ export function cycleRadix(signalName: string): void {
   const currentRadix = getSignalRadix(signalName);
 
   // Define the cycle order
-  const cycle: Array<'hex' | 'binary' | 'decimal' | 'ascii'> = [
-    'hex',
-    'binary',
-    'decimal',
-    'ascii',
-  ];
+  const cycle: Array<'HEX' | 'BIN' | 'UDEC' | 'SDEC'> = ['HEX', 'BIN', 'UDEC', 'SDEC'];
 
   // Find current position in cycle
   const currentIndex = cycle.indexOf(currentRadix);

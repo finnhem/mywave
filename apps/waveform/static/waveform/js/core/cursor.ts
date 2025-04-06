@@ -49,6 +49,14 @@ class CursorManager implements CursorState {
   }
 
   /**
+   * Updates the cursor position (alias for setTime).
+   * @param newTime - New cursor time position
+   */
+  updateTime(newTime: number): void {
+    this.setTime(newTime);
+  }
+
+  /**
    * Moves the cursor to the start of the time range.
    */
   moveToStart(): void {
@@ -69,11 +77,11 @@ class CursorManager implements CursorState {
   setActiveCanvas(canvas: HTMLCanvasElement): void {
     // Remove active class from previous canvas
     if (this.previousActiveCanvas) {
-      this.previousActiveCanvas.classList.remove('cursor-active-canvas');
+      this.previousActiveCanvas.classList.remove('cursor-active-canvas', 'bg-blue-50/5');
     }
 
     // Add active class to new canvas
-    canvas.classList.add('cursor-active-canvas');
+    canvas.classList.add('cursor-active-canvas', 'bg-blue-50/5');
 
     // Update previous canvas reference
     this.previousActiveCanvas = canvas;

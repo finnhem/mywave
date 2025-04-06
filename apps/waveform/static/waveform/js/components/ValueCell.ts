@@ -30,7 +30,8 @@ export class ValueCell extends BaseCell {
    */
   createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className = 'value-display flex items-center w-[120px] pr-2 pl-2';
+    cell.className = 'value-cell value-display flex items-center w-[120px] pr-2 pl-2';
+    cell.setAttribute('data-signal-name', this.signal.name);
 
     // Create text span for the value
     this.textSpan = document.createElement('span');
@@ -51,7 +52,15 @@ export class ValueCell extends BaseCell {
     // Subscribe to radix change events for this signal
     const radixChangeHandler = (event: RadixChangeEvent) => {
       if (event.signalName === this.signal.name) {
-        this.updateValue(); // Update with current cursor time
+        // Force immediate update of the value display with the new radix format
+        window.requestAnimationFrame(() => {
+          this.updateValue();
+          
+          // Also request a redraw of waveforms to reflect the new radix format
+          eventManager.emit({
+            type: 'redraw-request'
+          });
+        });
       }
     };
     eventManager.on('radix-change', radixChangeHandler);

@@ -55,8 +55,8 @@ export class HierarchyManager {
             children: new Map<string, HierarchyNode>(),
             signals: [],
             parent: currentNode,
-            expanded: false,
-            visible: true,
+            expanded: true, // Set expanded by default
+            visible: true, // Set visible by default
           };
 
           // If this is a leaf node (last segment), mark as signal
@@ -73,6 +73,10 @@ export class HierarchyManager {
         } else {
           // Move to existing node
           currentNode = currentNode.children.get(segment) as ExtendedHierarchyNode;
+
+          // Ensure node is expanded
+          currentNode.expanded = true;
+          currentNode.visible = true;
 
           // If this is a leaf node, update signal data
           if (i === path.length - 1) {
@@ -104,6 +108,15 @@ export class HierarchyManager {
     // Process each child
     for (const child of sortedChildren) {
       const childNode = child as ExtendedHierarchyNode;
+
+      // Ensure default states if not set
+      if (childNode.expanded === undefined) {
+        childNode.expanded = true; // Set expanded by default
+      }
+
+      if (childNode.isSignal && childNode.visible === undefined) {
+        childNode.visible = true; // Set signals visible by default
+      }
 
       // Create item for this node
       const item = document.createElement('li');
@@ -169,7 +182,7 @@ export class HierarchyManager {
       if (childNode.children.size > 0) {
         const childList = this.createTreeElement(childNode);
 
-        // Set display based on expanded state
+        // Set display based on expanded state - always expanded by default
         childList.style.display = childNode.expanded ? 'block' : 'none';
 
         // Add child list to item

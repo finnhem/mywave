@@ -79,7 +79,7 @@ export interface CursorState {
  */
 export interface SignalPreference {
   /** Radix for displaying signal values */
-  radix: 'hex' | 'binary' | 'decimal' | 'ascii';
+  radix: 'HEX' | 'BIN' | 'UDEC' | 'SDEC';
   /** Whether the signal is expanded in the hierarchy */
   expanded?: boolean;
 }
@@ -179,4 +179,21 @@ export interface WaveformViewerOptions {
   height: number;
   /** Initial time scale */
   timeScale: number;
+}
+
+/**
+ * Global declarations for browser environment
+ */
+declare global {
+  interface Window {
+    // Define timescale property for time units and value
+    timescale?: {
+      unit: string;
+      value: number;
+    };
+    SignalRow?: {
+      activeSignalName?: string | null;
+      [key: string]: unknown;
+    };
+  }
 }

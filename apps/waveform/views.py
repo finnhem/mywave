@@ -22,44 +22,69 @@ except ImportError as e:
 def get_signal_data(vcd):
     """Extract signal names and their waveform data using vcdvcd API"""
     try:
+        if vcd is None:
+            logger.error("Received None VCD object")
+            return {
+                'signals': [],
+                'timescale': {'value': 1, 'unit': 'ns'}
+            }
+            
         signal_names = vcd.get_signals()
+        if not signal_names:
+            logger.warning("No signals found in VCD file")
+            return {
+                'signals': [],
+                'timescale': {'value': 1, 'unit': 'ns'}
+            }
+            
         signals_data = []
         
-        # Get timescale information
-        timescale = vcd.get_timescale()
+        # Get timescale information with validation
+        timescale = vcd.get_timescale() or {'value': 1, 'unit': 'ns'}
         logger.debug(f"Raw timescale from VCD: {timescale}")
         
-        if not timescale:
-            timescale = {'value': 1, 'unit': 'ns'}  # Default to 1ns if not specified
-        
+        # Default timescale if not provided or invalid
+        if not isinstance(timescale, dict):
+            logger.warning(f"Invalid timescale format: {timescale}, using default")
+            timescale = {'value': 1, 'unit': 'ns'}
+            
         # Convert timescale to a standard format
         # Handle scientific notation in timescale
-        if 'timescale' in timescale:
-            # If we have scientific notation, use it directly
-            timescale_value = float(timescale['timescale'])
-            # The unit will be seconds in this case, convert to the appropriate unit
-            if timescale_value == 1e-12:  # 1ps
-                timescale_unit = 'ps'
-                timescale_value = 1
-            elif timescale_value == 1e-11:  # 10ps
-                timescale_unit = 'ps'
-                timescale_value = 10
-            elif timescale_value == 1e-10:  # 100ps
-                timescale_unit = 'ps'
-                timescale_value = 100
-            elif timescale_value == 1e-9:  # 1ns
-                timescale_unit = 'ns'
-                timescale_value = 1
+        try:
+            if 'timescale' in timescale:
+                # If we have scientific notation, use it directly
+                timescale_value = float(timescale['timescale'])
+                # The unit will be seconds in this case, convert to the appropriate unit
+                if timescale_value == 1e-12:  # 1ps
+                    timescale_unit = 'ps'
+                    timescale_value = 1
+                elif timescale_value == 1e-11:  # 10ps
+                    timescale_unit = 'ps'
+                    timescale_value = 10
+                elif timescale_value == 1e-10:  # 100ps
+                    timescale_unit = 'ps'
+                    timescale_value = 100
+                elif timescale_value == 1e-9:  # 1ns
+                    timescale_unit = 'ns'
+                    timescale_value = 1
+                else:
+                    # Convert to ns
+                    timescale_unit = 'ns'
+                    timescale_value = timescale_value * 1e9
             else:
-                # Convert to ns
-                timescale_unit = 'ns'
-                timescale_value = timescale_value * 1e9
-        else:
-            # Use the standard format
-            timescale_value = float(timescale.get('value', 1))
-            if 'magnitude' in timescale:
-                timescale_value *= float(timescale['magnitude'])
-            timescale_unit = str(timescale.get('unit', 'ns')).lower()
+                # Use the standard format
+                timescale_value = float(timescale.get('value', 1))
+                if 'magnitude' in timescale:
+                    try:
+                        timescale_value *= float(timescale['magnitude'])
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Invalid timescale magnitude: {e}, using default")
+                        timescale_value = 1
+                timescale_unit = str(timescale.get('unit', 'ns')).lower()
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error parsing timescale: {e}, using default")
+            timescale_value = 1
+            timescale_unit = 'ns'
         
         logger.debug(f"Parsed timescale: {timescale_value} {timescale_unit}")
         
@@ -81,32 +106,68 @@ def get_signal_data(vcd):
         first_time = None
         last_time = None
         
+        # Process signals with validation
         for signal_name in signal_names:
             try:
+                if not signal_name or not isinstance(signal_name, str):
+                    logger.warning(f"Invalid signal name: {signal_name}")
+                    continue
+                    
                 signal = vcd[signal_name]
-                if hasattr(signal, 'tv'):
-                    # Scale time values to nanoseconds
-                    data = [
-                        {'time': float(time) * scale_factor, 'value': value}
-                        for time, value in signal.tv
-                    ]
-                    if data:
-                        if first_time is None:
-                            first_time = data[0]['time']
-                            last_time = data[-1]['time']
-                        else:
-                            first_time = min(first_time, data[0]['time'])
-                            last_time = max(last_time, data[-1]['time'])
-                            
+                if not signal:
+                    logger.warning(f"Empty signal object for {signal_name}")
+                    continue
+                    
+                if not hasattr(signal, 'tv') or not signal.tv:
+                    logger.warning(f"No time-value data for signal {signal_name}")
                     signals_data.append({
                         'name': signal_name,
-                        'data': data
+                        'data': []
                     })
+                    continue
+                
+                # Validate and scale time values
+                data = []
+                for time_value_pair in signal.tv:
+                    try:
+                        if not isinstance(time_value_pair, (list, tuple)) or len(time_value_pair) != 2:
+                            logger.warning(f"Invalid time-value pair for {signal_name}: {time_value_pair}")
+                            continue
+                            
+                        time, value = time_value_pair
+                        scaled_time = float(time) * scale_factor
+                        
+                        if not isinstance(value, (str, int, float, bool)):
+                            value = str(value)
+                            
+                        data.append({'time': scaled_time, 'value': value})
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error processing time-value pair for {signal_name}: {e}")
+                        continue
+                
+                if data:
+                    if first_time is None:
+                        first_time = data[0]['time']
+                        last_time = data[-1]['time']
+                    else:
+                        first_time = min(first_time, data[0]['time'])
+                        last_time = max(last_time, data[-1]['time'])
+                            
+                signals_data.append({
+                    'name': signal_name,
+                    'data': data
+                })
+            except KeyError:
+                logger.warning(f"Signal {signal_name} not found in VCD file")
+                continue
             except Exception as e:
                 logger.error(f"Error processing signal {signal_name}: {str(e)}")
                 continue
         
-        logger.debug(f"Time range in VCD: {first_time} to {last_time} ns")
+        if not signals_data:
+            logger.warning("No signals data processed successfully")
+        else:
+            logger.debug(f"Time range in VCD: {first_time} to {last_time} ns")
                 
         return {
             'signals': sorted(signals_data, key=lambda x: x['name']),
@@ -125,22 +186,67 @@ def get_signal_data(vcd):
 def parse_vcd_file(file_path):
     """Parse VCD file and extract signal data"""
     if not PARSERS_AVAILABLE:
+        logger.error("VCD parsing libraries not available")
         raise ValidationError("VCD parsing libraries not available")
+        
+    # Validate file path
+    if not file_path or not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
+        raise ValidationError(f"File not found: {file_path}")
+        
+    # Check file size
+    file_size = os.path.getsize(file_path)
+    if file_size == 0:
+        logger.error(f"File is empty: {file_path}")
+        raise ValidationError("The uploaded file is empty")
+        
+    # Check file extension
+    if not file_path.lower().endswith('.vcd'):
+        logger.error(f"Invalid file extension: {file_path}")
+        raise ValidationError("Invalid file format. Only VCD files are allowed.")
 
+    # Try to parse with vcdvcd first
+    vcd = None
     try:
+        logger.debug(f"Attempting to parse file with vcdvcd: {file_path}")
         vcd = vcdvcd.VCDVCD(file_path)
         signals_data = get_signal_data(vcd)
+        if not signals_data or not signals_data.get('signals'):
+            logger.warning(f"No signals found in VCD file: {file_path}")
+            
         return signals_data
     except Exception as e:
         logger.error(f"vcdvcd parsing failed: {str(e)}")
+        # If vcdvcd fails, try with pyDigitalWaveTools
         try:
+            logger.debug(f"Attempting to parse file with pyDigitalWaveTools: {file_path}")
             with open(file_path, 'r') as f:
                 parser = VcdParser()
                 parser.parse(f)
-            # TODO: Extract signals from pydigitalwavetools
-            return []
+                
+            # Return empty signal list as we don't have good conversion from pyDigitalWaveTools yet
+            logger.warning("pyDigitalWaveTools parser succeeded but signal extraction not implemented")
+            return {
+                'signals': [],
+                'timescale': {'value': 1, 'unit': 'ns'}
+            }
+        except UnicodeDecodeError as ude:
+            logger.error(f"File encoding issue: {str(ude)}")
+            raise ValidationError("The file contains invalid characters or is not a text file.")
         except Exception as e2:
             logger.error(f"pydigitalwavetools parsing failed: {str(e2)}")
+            
+            # If both parsers fail, check for common issues
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    first_line = f.readline().strip()
+                    if not first_line.startswith('$') and '$date' not in first_line and '$version' not in first_line:
+                        logger.error("File doesn't appear to be a valid VCD file (missing header)")
+                        raise ValidationError("The file doesn't appear to be a valid VCD file. Missing proper header.")
+            except Exception as e3:
+                logger.error(f"File validation check failed: {str(e3)}")
+                
+            # If we reach here, both parsers failed but the file seems valid
             raise ValidationError(f"Failed to parse file: {str(e2)}")
 
 @require_http_methods(["GET", "POST"])

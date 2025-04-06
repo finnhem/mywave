@@ -47,9 +47,9 @@ export interface RadixChangeEvent extends BaseEvent {
   /** Signal name */
   signalName: string;
   /** New radix value */
-  radix: 'hex' | 'binary' | 'decimal' | 'ascii';
+  radix: 'HEX' | 'BIN' | 'UDEC' | 'SDEC';
   /** Previous radix value */
-  previousRadix: 'hex' | 'binary' | 'decimal' | 'ascii';
+  previousRadix: 'HEX' | 'BIN' | 'UDEC' | 'SDEC';
 }
 
 /**
