@@ -9,9 +9,9 @@
  */
 export interface TimePoint {
   /** The time value of this data point */
-  time: number;
+  readonly time: number;
   /** The signal value at this time */
-  value: string;
+  readonly value: string;
 }
 
 /**
@@ -19,13 +19,13 @@ export interface TimePoint {
  */
 export interface Signal {
   /** Unique name of the signal */
-  name: string;
+  readonly name: string;
   /** Array of time-value pairs comprising the signal data */
-  data: TimePoint[];
+  readonly data: TimePoint[];
   /** Bit width of the signal (1 for single-bit signals) */
-  width?: number;
+  readonly width?: number;
   /** Path components in the hierarchy */
-  hierarchyPath?: string[];
+  readonly hierarchyPath?: string[];
 }
 
 /**
@@ -33,9 +33,9 @@ export interface Signal {
  */
 export interface Timescale {
   /** Numeric value of the timescale */
-  value: number;
+  readonly value: number;
   /** Unit of the timescale (ps, ns, us, ms, s) */
-  unit: string;
+  readonly unit: string;
 }
 
 /**
@@ -43,9 +43,9 @@ export interface Timescale {
  */
 export interface SignalData {
   /** Array of all signals in the dataset */
-  signals: Signal[];
+  readonly signals: Signal[];
   /** Timescale information for the dataset */
-  timescale: Timescale;
+  readonly timescale: Timescale;
 }
 
 /**
@@ -196,4 +196,30 @@ declare global {
       [key: string]: unknown;
     };
   }
+}
+
+/**
+ * A Result type for operations that can fail
+ * @template T The success value type
+ * @template E The error value type
+ */
+export interface Result<T, E = Error> {
+  /** Whether the operation succeeded */
+  readonly success: boolean;
+  /** The success value (only present if success is true) */
+  readonly value?: T;
+  /** The error value (only present if success is false) */
+  readonly error?: E;
+}
+
+/**
+ * API response for file upload
+ */
+export interface UploadApiResponse {
+  /** Whether the upload was successful */
+  readonly success: boolean;
+  /** Error message if the upload failed */
+  readonly message?: string;
+  /** Signals data if the upload was successful */
+  readonly signals?: SignalData;
 }

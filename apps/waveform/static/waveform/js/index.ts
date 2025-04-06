@@ -5,7 +5,25 @@
  */
 
 import { WaveformViewer } from './app';
-import { WaveformViewerOptions } from './types/index';
+import { UploadApiResponse, WaveformViewerOptions } from './types/index';
+
+/**
+ * Custom error class for file upload related errors
+ */
+class FileUploadError extends Error {
+  public readonly code: string;
+  
+  constructor(message: string, code: string = 'UPLOAD_ERROR') {
+    super(message);
+    this.name = 'FileUploadError';
+    this.code = code;
+    
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, FileUploadError);
+    }
+  }
+}
 
 // Declare global window interface
 declare global {
@@ -37,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // No need to set Content-Type as FormData will set it with boundary
         });
 
-        const result = await response.json();
+        const result = await response.json() as UploadApiResponse;
 
         if (result.success) {
           if (statusElement) {
@@ -50,16 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
             window.waveformViewer.loadData(result.signals);
           }
         } else {
-          if (statusElement) {
-            statusElement.textContent = result.message || 'Upload failed';
-            statusElement.className = 'ml-auto text-red-500';
-          }
-          console.error('Upload error:', result);
+          // Create a custom error with the server's message
+          const error = new FileUploadError(result.message || 'Upload failed', 'SERVER_ERROR');
+          throw error;
         }
       } catch (error) {
-        console.error('Error uploading file:', error);
+        if (error instanceof FileUploadError) {
+          console.error(`${error.name} (${error.code}):`, error.message);
+        } else {
+          console.error('Error uploading file:', error);
+        }
+        
         if (statusElement) {
-          statusElement.textContent = 'Error uploading file';
+          statusElement.textContent = error instanceof FileUploadError ? error.message : 'Error uploading file';
           statusElement.className = 'ml-auto text-red-500';
         }
       }
