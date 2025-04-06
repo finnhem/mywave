@@ -82,4 +82,4 @@ export class KeyboardController {
       zoomLevel.textContent = `${viewport.zoomLevel.toFixed(1)}x`;
     }
   }
-} 
+}

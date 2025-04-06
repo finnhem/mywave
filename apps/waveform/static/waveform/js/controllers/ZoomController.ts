@@ -281,9 +281,9 @@ export class ZoomController {
     if (!selection) {
       return;
     }
-    
+
     if (selection.parentElement) {
       selection.parentElement.removeChild(selection);
     }
   }
-} 
+}

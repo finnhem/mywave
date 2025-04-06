@@ -5,7 +5,13 @@
  */
 
 import type { Signal, SignalPreference, SignalPreferences } from '../types';
-import { binaryToAscii, binaryToDecimal, binaryToHex, normalizeBinaryValue, getSignalValueAtTime } from '../utils/format';
+import {
+  binaryToAscii,
+  binaryToDecimal,
+  binaryToHex,
+  getSignalValueAtTime,
+  normalizeBinaryValue,
+} from '../utils/format';
 import { eventManager } from './events';
 
 /**
@@ -54,23 +60,28 @@ export function updateSignalRadix(
       const display = cell.querySelector('.radix-display');
       if (display) {
         display.textContent = radix;
-        
+
         // Update styling based on new radix
-        display.classList.remove('text-gray-500', 'text-indigo-600', 'text-blue-600', 'text-green-600');
+        display.classList.remove(
+          'text-gray-500',
+          'text-indigo-600',
+          'text-blue-600',
+          'text-green-600'
+        );
         const radixStyles: Record<string, string> = {
-          'BIN': 'text-gray-500',
-          'HEX': 'text-indigo-600',
-          'UDEC': 'text-blue-600',
-          'SDEC': 'text-green-600'
+          BIN: 'text-gray-500',
+          HEX: 'text-indigo-600',
+          UDEC: 'text-blue-600',
+          SDEC: 'text-green-600',
         };
         display.classList.add(radixStyles[radix]);
       }
     }
   }
-  
+
   // Also directly update value cells
   if (window.signals) {
-    const signal = window.signals.find(s => s.name === signalName);
+    const signal = window.signals.find((s) => s.name === signalName);
     if (signal && window.cursor?.currentTime) {
       const valueCells = document.querySelectorAll('.value-cell');
       for (const cell of Array.from(valueCells)) {

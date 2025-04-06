@@ -135,24 +135,24 @@ export function binaryToDecimal(binaryStr: string, signed = false): string {
       .split('')
       .map((bit) => (bit === '0' ? '1' : '0'))
       .join('');
-    
+
     // Add 1 to get 2's complement
     const twosComplement = (Number.parseInt(inverted, 2) + 1).toString(2);
-    
+
     // Convert to decimal and make negative
     const decimal = Number.parseInt(twosComplement, 2);
     const result = '-';
     return result.concat(decimal.toString());
   }
-  
+
   // Unsigned conversion (or signed positive value)
   const decimal = Number.parseInt(normalized, 2);
-  
+
   // Check for conversion errors
   if (Number.isNaN(decimal)) {
     return 'error';
   }
-  
+
   return decimal.toString();
 }
 

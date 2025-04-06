@@ -237,8 +237,13 @@ export class CursorController {
   getActiveSignal(): Signal | null {
     if (!window.signals?.length) return null;
 
+    // Initialize SignalRow if it doesn't exist
+    if (!window.SignalRow) {
+      window.SignalRow = {};
+    }
+
     // Get the active signal name if defined
-    const activeSignalName = window.SignalRow?.activeSignalName;
+    const activeSignalName = window.SignalRow.activeSignalName;
 
     if (activeSignalName) {
       // Find signal with that name
@@ -251,11 +256,14 @@ export class CursorController {
     if (rows.length > 0) {
       const firstSignalName = rows[0].getAttribute('data-signal-name');
       if (firstSignalName) {
+        // Set this as the active signal for future use
+        window.SignalRow.activeSignalName = firstSignalName;
         return window.signals.find((s: Signal) => s.name === firstSignalName) || null;
       }
     }
 
     // Fall back to the first signal if all else fails
+    window.SignalRow.activeSignalName = window.signals[0].name;
     return window.signals[0] || null;
   }
 
@@ -319,4 +327,4 @@ declare global {
   interface Window {
     signals?: Signal[];
   }
-} 
+}

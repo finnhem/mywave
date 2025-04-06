@@ -250,6 +250,11 @@ export class WaveformViewer {
     window.getSignalValueAtTime = getSignalValueAtTime;
     window.cursor = cursor;
 
+    // Initialize SignalRow if needed
+    if (!window.SignalRow) {
+      window.SignalRow = {};
+    }
+
     // Set up event handlers for redrawing
     eventManager.on('redraw-request', this.handleRedrawRequest.bind(this));
     eventManager.on('viewport-range-change', this.handleViewportChange.bind(this));

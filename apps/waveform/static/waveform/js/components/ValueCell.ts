@@ -55,10 +55,10 @@ export class ValueCell extends BaseCell {
         // Force immediate update of the value display with the new radix format
         window.requestAnimationFrame(() => {
           this.updateValue();
-          
+
           // Also request a redraw of waveforms to reflect the new radix format
           eventManager.emit({
-            type: 'redraw-request'
+            type: 'redraw-request',
           });
         });
       }
