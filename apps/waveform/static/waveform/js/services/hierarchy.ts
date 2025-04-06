@@ -98,7 +98,7 @@ export class HierarchyManager {
   public createTreeElement(node: ExtendedHierarchyNode): HTMLElement {
     // Create list for this level
     const list = document.createElement('ul');
-    list.classList.add('hierarchy-list');
+    list.classList.add('hierarchy-list', 'pl-4');
 
     // Sort children by name
     const sortedChildren = Array.from(node.children.values()).sort((a, b) => {
@@ -114,22 +114,27 @@ export class HierarchyManager {
         childNode.expanded = true; // Set expanded by default
       }
 
-      if (childNode.isSignal && childNode.visible === undefined) {
-        childNode.visible = true; // Set signals visible by default
+      if (childNode.visible === undefined) {
+        childNode.visible = true; // Set visible by default for all nodes
       }
 
       // Create item for this node
       const item = document.createElement('li');
-      item.classList.add('hierarchy-item');
+      item.classList.add('hierarchy-item', 'py-1');
 
       // Create node element
       const nodeElement = document.createElement('div');
-      nodeElement.classList.add('hierarchy-node');
+      nodeElement.classList.add('hierarchy-node', 'flex', 'items-center', 'text-sm');
+
+      // For selected node, add highlight styling
+      if (childNode.selected) {
+        nodeElement.classList.add('bg-gray-200');
+      }
 
       // Add expand/collapse button if this node has children
       if (childNode.children.size > 0) {
         const expandButton = document.createElement('span');
-        expandButton.classList.add('expand-button');
+        expandButton.classList.add('expand-button', 'w-4', 'text-center', 'mr-1', 'cursor-pointer');
         expandButton.textContent = childNode.expanded ? '▼' : '►';
         expandButton.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -139,27 +144,35 @@ export class HierarchyManager {
       } else {
         // Add spacer for leaf nodes
         const spacer = document.createElement('span');
-        spacer.classList.add('expand-spacer');
+        spacer.classList.add('expand-spacer', 'w-4', 'mr-1');
         spacer.textContent = ' ';
         nodeElement.appendChild(spacer);
       }
 
-      // Add visibility toggle for signals
-      if (childNode.isSignal) {
-        const visibilityToggle = document.createElement('span');
-        visibilityToggle.classList.add('visibility-toggle');
-        visibilityToggle.textContent = childNode.visible ? '👁️' : '⃠';
-        visibilityToggle.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.toggleNodeVisibility(childNode);
-        });
-        nodeElement.appendChild(visibilityToggle);
-      }
+      // Add visibility toggle for all nodes (including non-signal nodes)
+      const visibilityToggle = document.createElement('span');
+      visibilityToggle.classList.add(
+        'visibility-toggle',
+        'w-5',
+        'text-center',
+        'mr-1',
+        'cursor-pointer'
+      );
+      visibilityToggle.innerHTML = childNode.visible
+        ? '<span class="text-blue-500">⚪</span>'
+        : '<span>⚫</span>';
+      visibilityToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleNodeVisibility(childNode);
+      });
+      nodeElement.appendChild(visibilityToggle);
 
       // Add node name
       const nameSpan = document.createElement('span');
-      nameSpan.classList.add('node-name');
+      nameSpan.classList.add('node-name', 'cursor-pointer');
       nameSpan.textContent = childNode.name;
+
+      // Style for signal nodes
       if (childNode.isSignal) {
         nameSpan.classList.add('signal-node');
       }
@@ -169,6 +182,12 @@ export class HierarchyManager {
       if (childNode.isSignal && childNode.signalData) {
         nodeElement.addEventListener('click', () => {
           this.selectSignal(childNode.signalData as Signal);
+        });
+      } else if (childNode.children.size > 0) {
+        // For non-signal nodes with children, clicking the name also toggles expansion
+        nameSpan.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleNodeExpanded(childNode);
         });
       }
 
@@ -182,7 +201,7 @@ export class HierarchyManager {
       if (childNode.children.size > 0) {
         const childList = this.createTreeElement(childNode);
 
-        // Set display based on expanded state - always expanded by default
+        // Set display based on expanded state
         childList.style.display = childNode.expanded ? 'block' : 'none';
 
         // Add child list to item
@@ -233,6 +252,9 @@ export class HierarchyManager {
    * @returns Whether the node is now visible
    */
   public toggleNodeVisibility(node: ExtendedHierarchyNode): boolean {
+    // Track if we're changing from hidden to visible
+    const _becomingVisible = !node.visible;
+
     // Toggle visibility
     node.visible = !node.visible;
 
@@ -241,16 +263,70 @@ export class HierarchyManager {
       const visibilityToggle = node.element.querySelector('.visibility-toggle');
 
       if (visibilityToggle) {
-        visibilityToggle.textContent = node.visible ? '👁️' : '⃠';
+        visibilityToggle.innerHTML = node.visible
+          ? '<span class="text-blue-500">⚪</span>'
+          : '<span>⚫</span>';
       }
+    }
+
+    // If this is a non-signal node with children, toggle all child signals
+    if (!node.isSignal && node.children.size > 0) {
+      this.toggleChildrenVisibility(node, node.visible);
     }
 
     // Update displayed signals
     if (typeof window.updateDisplayedSignals === 'function') {
       window.updateDisplayedSignals();
+
+      // The updateDisplayedSignals function now includes redrawing the waveforms
+      // so we don't need a separate redraw call here
     }
 
     return node.visible;
+  }
+
+  /**
+   * Toggles visibility for all children of a node.
+   * @param node - Parent node
+   * @param visible - Whether children should be visible
+   * @returns Whether any nodes changed visibility state
+   */
+  private toggleChildrenVisibility(node: ExtendedHierarchyNode, visible: boolean): boolean {
+    let visibilityChanged = false;
+
+    // Process each child
+    for (const child of node.children.values()) {
+      const childNode = child as ExtendedHierarchyNode;
+
+      // Check if visibility is changing
+      if (childNode.visible !== visible) {
+        visibilityChanged = true;
+      }
+
+      // Set child visibility
+      childNode.visible = visible;
+
+      // Update DOM
+      if (childNode.element) {
+        const visibilityToggle = childNode.element.querySelector('.visibility-toggle');
+
+        if (visibilityToggle) {
+          visibilityToggle.innerHTML = visible
+            ? '<span class="text-blue-500">⚪</span>'
+            : '<span>⚫</span>';
+        }
+      }
+
+      // Recursively process children
+      if (childNode.children.size > 0) {
+        // If any children changed visibility, mark that we've had changes
+        if (this.toggleChildrenVisibility(childNode, visible)) {
+          visibilityChanged = true;
+        }
+      }
+    }
+
+    return visibilityChanged;
   }
 
   /**
@@ -290,7 +366,7 @@ declare global {
   interface Window {
     updateDisplayedSignals?: () => void;
     SignalRow?: {
-      activeSignalName?: string;
+      activeSignalName?: string | null;
       [key: string]: unknown;
     };
   }

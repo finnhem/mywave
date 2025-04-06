@@ -4,16 +4,17 @@
  * @module app
  */
 
+import {
+  CursorController,
+  KeyboardController,
+  SignalRenderer,
+  ZoomController,
+} from './controllers';
 import { cursor } from './core/cursor';
 import { viewport } from './core/viewport';
-import { 
-  CursorController, 
-  KeyboardController, 
-  SignalRenderer,
-  ZoomController 
-} from './controllers';
+import { eventManager } from './services/events';
 import { HierarchyManager } from './services/hierarchy';
-import { signalPreferences, formatSignalValue } from './services/radix';
+import { formatSignalValue, signalPreferences } from './services/radix';
 import type {
   CursorState,
   Signal,
@@ -25,7 +26,6 @@ import type {
 } from './types';
 import { clearAndRedraw, drawTimeline } from './ui/waveform';
 import { calculateMaxZoom, calculateMinTimeDelta, getSignalValueAtTime } from './utils';
-import { eventManager } from './services/events';
 
 // Re-export from hierarchy.ts to avoid circular dependency
 type ExtendedHierarchyNode = {
@@ -133,13 +133,32 @@ export class WaveformViewer {
     // Create tree container
     const tree = document.createElement('div');
     tree.id = 'signal-tree';
-    tree.classList.add('signal-tree');
+    tree.classList.add(
+      'signal-tree',
+      'border',
+      'border-gray-300',
+      'rounded',
+      'p-2',
+      'max-h-full',
+      'overflow-y-auto',
+      'bg-white'
+    );
 
     // Clear any existing content and append the tree
     const existingTreeElement = signalSelectorContainer.querySelector('#signal-tree');
     if (existingTreeElement) {
       // Use the existing tree element if available
       this.elements.tree = existingTreeElement as HTMLElement;
+      // Ensure proper styling
+      this.elements.tree.classList.add(
+        'border',
+        'border-gray-300',
+        'rounded',
+        'p-2',
+        'max-h-full',
+        'overflow-y-auto',
+        'bg-white'
+      );
     } else {
       // Otherwise append the new tree to the container
       const treePanel =
@@ -194,21 +213,25 @@ export class WaveformViewer {
     // Initialize cache-related components
     this.initializeCache();
 
-    // Register click handlers for the show/hide all buttons
+    // Register click handlers for the existing show/hide all buttons
     const showAllButton = document.getElementById('select-all');
     const hideAllButton = document.getElementById('deselect-all');
 
     if (showAllButton) {
       showAllButton.addEventListener('click', () => {
-        // Logic to show all signals
-        console.log('Show all clicked');
+        // Show all signals
+        if (this.elements.tree?.hierarchyRoot) {
+          this.showAllSignals(this.elements.tree.hierarchyRoot);
+        }
       });
     }
 
     if (hideAllButton) {
       hideAllButton.addEventListener('click', () => {
-        // Logic to hide all signals
-        console.log('Hide all clicked');
+        // Hide all signals
+        if (this.elements.tree?.hierarchyRoot) {
+          this.hideAllSignals(this.elements.tree.hierarchyRoot);
+        }
       });
     }
 
@@ -295,7 +318,7 @@ export class WaveformViewer {
         this.signalRenderer.setSignalData(data.signals);
       }
 
-      // Make signals globally available 
+      // Make signals globally available
       window.signals = data.signals;
 
       // Build hierarchy
@@ -432,6 +455,76 @@ export class WaveformViewer {
       for (const child of node.children.values()) {
         this.expandAllNodes(child as ExtendedHierarchyNode);
       }
+    }
+  }
+
+  /**
+   * Shows all signals in the hierarchy.
+   * @param node - Root node to start from
+   */
+  private showAllSignals(node: ExtendedHierarchyNode): void {
+    const wasHidden = !node.visible;
+
+    // Set this node to visible
+    node.visible = true;
+
+    // Update DOM
+    if (node.element) {
+      const visibilityToggle = node.element.querySelector('.visibility-toggle');
+      if (visibilityToggle) {
+        visibilityToggle.innerHTML = '<span class="text-blue-500">⚪</span>';
+      }
+    }
+
+    // Process children
+    for (const child of node.children.values()) {
+      this.showAllSignals(child as ExtendedHierarchyNode);
+    }
+
+    // Update displayed signals
+    if (typeof window.updateDisplayedSignals === 'function') {
+      window.updateDisplayedSignals();
+    }
+
+    // Force redraw all waveform canvases if they were previously hidden
+    if (wasHidden) {
+      setTimeout(() => {
+        const canvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
+        for (const canvas of Array.from(canvases)) {
+          if (canvas.redraw) {
+            canvas.redraw();
+          } else {
+            clearAndRedraw(canvas);
+          }
+        }
+      }, 50); // Small delay to ensure DOM is updated
+    }
+  }
+
+  /**
+   * Hides all signals in the hierarchy.
+   * @param node - Root node to start from
+   */
+  private hideAllSignals(node: ExtendedHierarchyNode): void {
+    // Set this node to hidden
+    node.visible = false;
+
+    // Update DOM
+    if (node.element) {
+      const visibilityToggle = node.element.querySelector('.visibility-toggle');
+      if (visibilityToggle) {
+        visibilityToggle.innerHTML = '<span>⚫</span>';
+      }
+    }
+
+    // Process children
+    for (const child of node.children.values()) {
+      this.hideAllSignals(child as ExtendedHierarchyNode);
+    }
+
+    // Update displayed signals
+    if (typeof window.updateDisplayedSignals === 'function') {
+      window.updateDisplayedSignals();
     }
   }
 }

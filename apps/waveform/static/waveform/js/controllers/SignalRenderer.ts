@@ -6,17 +6,13 @@
 
 import { cursor } from '../core/cursor';
 import { cacheManager } from '../services/cache';
+import { eventManager } from '../services/events';
+import type { RadixChangeEvent } from '../services/events';
 import { preloader } from '../services/preload';
-import { 
-  formatSignalValue, 
-  getSignalRadix, 
-  cycleRadix 
-} from '../services/radix';
+import { cycleRadix, formatSignalValue, getSignalRadix } from '../services/radix';
 import type { ExtendedHierarchyNode, Signal, TimePoint } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
 import { getSignalValueAtTime } from '../utils';
-import { eventManager } from '../services/events';
-import type { RadixChangeEvent } from '../services/events';
 
 /**
  * Controller for signal rendering and management.
@@ -63,6 +59,14 @@ export class SignalRenderer {
     for (const signal of visibleSignals) {
       this.renderSignalRow(signal, this.waveformContainer);
     }
+
+    // Ensure all waveform canvases are properly rendered
+    setTimeout(() => {
+      const canvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
+      for (const canvas of Array.from(canvases)) {
+        clearAndRedraw(canvas);
+      }
+    }, 10);
 
     // Record cache performance metrics for this rendering operation
     const waveformStats = cacheManager.getStats('waveforms');
@@ -155,25 +159,25 @@ export class SignalRenderer {
     radixCell.setAttribute('data-signal-name', signal.name);
     radixCell.style.display = 'flex';
     radixCell.style.justifyContent = 'center';
-    
+
     // Create radix display element inside
     const radixDisplay = document.createElement('div');
     radixDisplay.classList.add('radix-display');
     radixDisplay.className = 'radix-display text-xs uppercase font-bold cursor-pointer';
     radixDisplay.textContent = getSignalRadix(signal.name);
-    
+
     // Add styling based on current radix
     const currentRadix = getSignalRadix(signal.name);
     const radixStyles: Record<string, string> = {
-      'BIN': 'text-gray-500',
-      'HEX': 'text-indigo-600',
-      'UDEC': 'text-blue-600',
-      'SDEC': 'text-green-600'
+      BIN: 'text-gray-500',
+      HEX: 'text-indigo-600',
+      UDEC: 'text-blue-600',
+      SDEC: 'text-green-600',
     };
     radixDisplay.classList.add(radixStyles[currentRadix]);
-    
+
     radixCell.appendChild(radixDisplay);
-    
+
     // Add click handler
     radixCell.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent row selection
@@ -196,6 +200,11 @@ export class SignalRenderer {
     waveformCanvas.signalData = signal.data;
     waveformCanvas.signal = signal;
     waveformCanvas.valueDisplay = valueCell;
+
+    // Add redraw method to canvas for easy redrawing when needed
+    waveformCanvas.redraw = () => {
+      clearAndRedraw(waveformCanvas);
+    };
 
     waveformCell.appendChild(waveformCanvas);
 
@@ -228,24 +237,26 @@ export class SignalRenderer {
    * @returns Array of visible signals
    */
   collectVisibleSignals(node: ExtendedHierarchyNode): Signal[] {
-    // Ensure node is expanded
-    node.expanded = true;
-
     let signals: Signal[] = [];
 
-    // Set all signals to visible
-    if (node.isSignal && node.signalData) {
-      node.visible = true;
+    // Skip entire subtree if this node is not visible
+    if (!node.visible) {
+      return signals;
+    }
+
+    // Add this signal if it's a visible signal node
+    if (node.isSignal && node.visible && node.signalData) {
       signals.push(node.signalData);
     }
 
-    // Handle children as Map
-    if (node.children instanceof Map) {
-      for (const child of node.children.values()) {
-        const childNode = child as ExtendedHierarchyNode;
-        // Ensure all children are expanded too
-        childNode.expanded = true;
-        signals = signals.concat(this.collectVisibleSignals(childNode));
+    // Process all children if node is expanded
+    if (node.expanded) {
+      // Handle children as Map
+      if (node.children instanceof Map) {
+        for (const child of node.children.values()) {
+          const childNode = child as ExtendedHierarchyNode;
+          signals = signals.concat(this.collectVisibleSignals(childNode));
+        }
       }
     }
 
@@ -287,11 +298,11 @@ declare global {
   interface Window {
     signals?: Signal[];
   }
-  
+
   interface HTMLCanvasElement {
     signalData?: TimePoint[];
     signal?: Signal;
     valueDisplay?: HTMLElement;
     redraw?: () => void;
   }
-} 
+}
