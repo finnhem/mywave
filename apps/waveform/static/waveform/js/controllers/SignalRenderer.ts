@@ -13,6 +13,7 @@ import { cycleRadix, formatSignalValue, getSignalRadix } from '../services/radix
 import type { ExtendedHierarchyNode, Signal, TimePoint } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
 import { getSignalValueAtTime } from '../utils';
+import { GRID_LAYOUTS, STYLES, applyStyles } from '../utils/styles';
 
 /**
  * Controller for signal rendering and management.
@@ -104,30 +105,31 @@ export class SignalRenderer {
     const row = document.createElement('div');
     row.classList.add('signal-row');
     row.setAttribute('data-signal-name', signal.name);
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = '300px 100px 50px 1fr';
-    row.style.gap = '0.625rem';
-    row.style.alignItems = 'center';
-    row.style.minWidth = 'fit-content';
-    row.style.padding = '0.125rem 0.375rem';
+    
+    // Apply row styling using our centralized styles
+    applyStyles(row, {
+      display: 'grid',
+      gridTemplateColumns: '300px 100px 50px 1fr',
+      alignItems: 'center',
+      minWidth: 'fit-content',
+      height: '2.5rem', // h-10 = 2.5rem
+      padding: '0'
+    });
+    
+    // Add the Tailwind classes from our styles module
+    row.className = `signal-row ${STYLES.SIGNAL_ROW.BASE} ${GRID_LAYOUTS.WAVEFORM_GRID}`;
 
     // Create name cell
     const nameCell = document.createElement('div');
     nameCell.classList.add('name-cell');
+    nameCell.className = `name-cell ${STYLES.CELLS.NAME}`;
     nameCell.textContent = signal.name.split('.').pop() || signal.name;
-    nameCell.style.overflow = 'hidden';
-    nameCell.style.textOverflow = 'ellipsis';
-    nameCell.style.whiteSpace = 'nowrap';
 
     // Create value cell
     const valueCell = document.createElement('div');
     valueCell.classList.add('value-cell');
+    valueCell.className = `value-cell ${STYLES.CELLS.VALUE}`;
     valueCell.setAttribute('data-signal-name', signal.name);
-    valueCell.style.textAlign = 'right';
-    valueCell.style.fontFamily = 'monospace';
-    valueCell.style.fontSize = '0.875rem';
-    valueCell.style.width = '100%';
-    valueCell.style.padding = '0 0.625rem';
 
     // Create value display span
     const valueSpan = document.createElement('span');
@@ -156,25 +158,17 @@ export class SignalRenderer {
     // Create radix cell
     const radixCell = document.createElement('div');
     radixCell.classList.add('radix-cell');
+    radixCell.className = `radix-cell ${STYLES.CELLS.RADIX}`;
     radixCell.setAttribute('data-signal-name', signal.name);
-    radixCell.style.display = 'flex';
-    radixCell.style.justifyContent = 'center';
 
     // Create radix display element inside
     const radixDisplay = document.createElement('div');
     radixDisplay.classList.add('radix-display');
-    radixDisplay.className = 'radix-display text-xs uppercase font-bold cursor-pointer';
-    radixDisplay.textContent = getSignalRadix(signal.name);
-
-    // Add styling based on current radix
+    
+    // Apply radix styling based on current value
     const currentRadix = getSignalRadix(signal.name);
-    const radixStyles: Record<string, string> = {
-      BIN: 'text-gray-500',
-      HEX: 'text-indigo-600',
-      UDEC: 'text-blue-600',
-      SDEC: 'text-green-600',
-    };
-    radixDisplay.classList.add(radixStyles[currentRadix]);
+    radixDisplay.className = `radix-display ${STYLES.RADIX.BASE} ${STYLES.RADIX[currentRadix]}`;
+    radixDisplay.textContent = currentRadix;
 
     radixCell.appendChild(radixDisplay);
 
@@ -187,16 +181,12 @@ export class SignalRenderer {
     // Create waveform cell
     const waveformCell = document.createElement('div');
     waveformCell.classList.add('waveform-cell');
-    waveformCell.style.overflow = 'hidden';
-    waveformCell.style.minWidth = '0';
-    waveformCell.style.height = '2rem';
+    waveformCell.className = `waveform-cell ${STYLES.CELLS.WAVEFORM}`;
 
     const waveformCanvas = document.createElement('canvas');
     waveformCanvas.classList.add('waveform-canvas');
+    waveformCanvas.className = `waveform-canvas ${STYLES.CANVAS.BASE}`;
     waveformCanvas.setAttribute('data-signal-name', signal.name);
-    waveformCanvas.style.width = '100%';
-    waveformCanvas.style.height = '100%';
-    waveformCanvas.style.display = 'block';
     waveformCanvas.signalData = signal.data;
     waveformCanvas.signal = signal;
     waveformCanvas.valueDisplay = valueCell;

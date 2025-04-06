@@ -44,22 +44,29 @@
                 </div>
             </div>
             <div id="waveform-display-container" class="flex flex-col overflow-hidden relative flex-grow min-w-fit">
-                <div class="waveform-header-row grid grid-cols-[300px_100px_50px_1fr] items-stretch h-10 font-bold bg-white sticky top-0 z-10 min-w-fit">
-                    <div class="flex items-center px-2.5">Signals</div>
-                    <div class="flex items-center justify-center">Value</div>
-                    <div class="flex items-center justify-center">Radix</div>
-                    <div id="timeline-container" class="overflow-hidden h-full">
-                        <canvas id="timeline" class="w-full h-full block"></canvas>
+                <div class="flex items-stretch min-w-fit">
+                    <div class="waveform-header-row grid grid-cols-[300px_100px_50px_1fr] items-stretch h-10 font-bold bg-white sticky top-0 z-10 flex-grow"
+                         data-grid-layout="waveform-grid">
+                        <div class="flex items-center px-2.5" data-style="header-name-cell">Signals</div>
+                        <div class="flex items-center justify-center" data-style="header-value-cell">Value</div>
+                        <div class="flex items-center justify-center" data-style="header-radix-cell">Radix</div>
+                        <div id="timeline-container" class="overflow-hidden h-full" data-style="header-timeline-cell">
+                            <canvas id="timeline" class="w-full h-full block" data-style="canvas-base"></canvas>
+                        </div>
                     </div>
+                    <!-- Spacer div to account for scrollbar width -->
+                    <div class="scrollbar-spacer w-[17px] h-10 bg-white"></div>
                 </div>
                 <div id="waveform-rows-container" class="flex-1 overflow-y-auto relative" style="height: calc(100vh - 250px);">
                     <!-- Row template -->
-                    <div class="grid grid-cols-[300px_100px_50px_1fr] gap-2.5 items-center min-w-fit p-1.5 border-b border-gray-200">
-                        <div class="overflow-hidden text-ellipsis whitespace-nowrap"></div>
-                        <div class="text-right font-mono text-sm w-full px-2.5"></div>
-                        <div class="flex justify-center"></div>
-                        <div class="overflow-hidden min-w-0 h-10">
-                            <canvas class="w-full h-full block"></canvas>
+                    <div class="grid grid-cols-[300px_100px_50px_1fr] items-center min-w-fit h-10 px-0" 
+                         data-style="signal-row-base"
+                         data-grid-layout="waveform-grid">
+                        <div class="overflow-hidden text-ellipsis whitespace-nowrap px-2.5" data-style="cell-name"></div>
+                        <div class="flex justify-center text-right font-mono text-sm w-full px-2.5" data-style="cell-value"></div>
+                        <div class="flex justify-center" data-style="cell-radix"></div>
+                        <div class="overflow-hidden min-w-0 h-10" data-style="cell-waveform">
+                            <canvas class="w-full h-full block" data-style="canvas-base"></canvas>
                         </div>
                     </div>
                 </div>

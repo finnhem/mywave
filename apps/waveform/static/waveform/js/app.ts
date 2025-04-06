@@ -45,10 +45,6 @@ type ExtendedHierarchyNode = {
 // Extend Window interface with our custom properties
 declare global {
   interface Window {
-    timescale?: {
-      unit: string;
-      value: number;
-    };
     signalPreferences: SignalPreferences;
     formatSignalValue: (value: string, signal: Signal) => string;
     clearAndRedraw: (canvas: HTMLCanvasElement) => void;
@@ -60,6 +56,7 @@ declare global {
       [key: string]: unknown;
     };
     signals?: Signal[];
+    [key: string]: any;
   }
 
   interface HTMLElement {
@@ -202,6 +199,9 @@ export class WaveformViewer {
     this.elements.waveformContainer = waveformContainer;
     this.elements.timeline = timeline;
 
+    // Adjust scrollbar spacer width to match actual scrollbar width
+    this.adjustScrollbarSpacerWidth();
+
     // Initialize controllers
     if (waveformContainer) {
       this.signalRenderer = new SignalRenderer(waveformContainer);
@@ -237,6 +237,62 @@ export class WaveformViewer {
 
     // Mark as initialized
     this.initialized = true;
+  }
+
+  /**
+   * Adjusts the width of the scrollbar spacer to match the actual scrollbar width
+   */
+  private adjustScrollbarSpacerWidth(): void {
+    const waveformRowsContainer = document.getElementById('waveform-rows-container');
+    const scrollbarSpacer = document.querySelector('.scrollbar-spacer') as HTMLElement;
+    
+    if (waveformRowsContainer && scrollbarSpacer) {
+      // Function to update scrollbar width
+      const updateScrollbarWidth = () => {
+        // Method 1: Calculate from the container itself
+        if (waveformRowsContainer.scrollHeight > waveformRowsContainer.clientHeight) {
+          const currentScrollbarWidth = waveformRowsContainer.offsetWidth - waveformRowsContainer.clientWidth;
+          if (currentScrollbarWidth > 0) {
+            scrollbarSpacer.style.width = `${currentScrollbarWidth}px`;
+            return;
+          }
+        }
+        
+        // Method 2: Use a temporary div for initial calculation when container doesn't have scrollbar yet
+        const tempDiv = document.createElement('div');
+        tempDiv.style.width = '100px';
+        tempDiv.style.height = '100px';
+        tempDiv.style.overflow = 'scroll';
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.top = '-9999px';
+        document.body.appendChild(tempDiv);
+        
+        // Calculate scrollbar width
+        const scrollbarWidth = tempDiv.offsetWidth - tempDiv.clientWidth;
+        
+        // Remove the temporary div
+        document.body.removeChild(tempDiv);
+        
+        // Set the scrollbar spacer width
+        scrollbarSpacer.style.width = `${scrollbarWidth}px`;
+      };
+      
+      // Initially set the width
+      updateScrollbarWidth();
+      
+      // Update on window resize
+      window.addEventListener('resize', updateScrollbarWidth);
+      
+      // Update when the signal data changes
+      eventManager.on('redraw-request', updateScrollbarWidth);
+      
+      // Set up a MutationObserver to watch for changes in the waveform container
+      const observer = new MutationObserver(updateScrollbarWidth);
+      observer.observe(waveformRowsContainer, { 
+        childList: true, 
+        subtree: true 
+      });
+    }
   }
 
   /**
@@ -310,13 +366,26 @@ export class WaveformViewer {
       // Validate timescale
       if (!data.timescale || typeof data.timescale !== 'object') {
         console.warn('Invalid timescale format, using default');
-        data.timescale = { value: 1, unit: 'ns' };
+        // Create a completely new SignalData object to avoid readonly property issues
+        const newData: SignalData = {
+          signals: data.signals || [],
+          timescale: { value: 1, unit: 'ns' }
+        };
+        data = newData;
       }
 
       this.signalData = data;
 
-      // Register global window timescale
-      window.timescale = data.timescale;
+      // Make timescale info available via a custom property
+      (window as any)._waveformTimescale = {
+        unit: data.timescale.unit,
+        value: data.timescale.value
+      };
+      
+      // Create a reference to the timescale for other components to use
+      if (!(window as any).timescale) {
+        (window as any).timescale = (window as any)._waveformTimescale;
+      }
 
       // Set up signal renderer
       if (this.signalRenderer) {

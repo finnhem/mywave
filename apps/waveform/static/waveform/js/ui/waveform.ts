@@ -207,7 +207,7 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
   ctx.stroke();
   ctx.restore();
 
-  // Draw cursor if it exists
+  // Draw cursor if it exists (cursor always has a line width of 2)
   if (cursor.currentTime !== undefined) {
     drawCursor(
       ctx,
@@ -328,7 +328,7 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
 
   ctx.restore();
 
-  // Draw cursor
+  // Draw cursor if it exists (cursor always has a line width of 2)
   if (cursor.currentTime !== undefined) {
     drawCursor(
       ctx,

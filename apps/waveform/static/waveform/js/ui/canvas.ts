@@ -89,14 +89,15 @@ export function drawCursor(
   // Draw cursor line
   ctx.save();
 
-  // Use different styling for the active canvas
+  // Use different styling for the active canvas, but keep line width consistent at 2
   if (canvas.classList.contains('cursor-active-canvas')) {
     ctx.strokeStyle = '#4f46e5'; // Indigo-600
-    ctx.lineWidth = 2;
   } else {
     ctx.strokeStyle = '#6b7280'; // Gray-500
-    ctx.lineWidth = 1;
   }
+  
+  // Always use a consistent line width of 2
+  ctx.lineWidth = 2;
 
   // Draw dotted line for cursor
   ctx.setLineDash([4, 4]);
