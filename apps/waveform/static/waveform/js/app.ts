@@ -249,16 +249,26 @@ export class WaveformViewer {
     if (waveformRowsContainer && scrollbarSpacer) {
       // Function to update scrollbar width
       const updateScrollbarWidth = () => {
-        // Method 1: Calculate from the container itself
-        if (waveformRowsContainer.scrollHeight > waveformRowsContainer.clientHeight) {
+        // Check if scrollbar is present by comparing scrollHeight to clientHeight
+        const hasScrollbar =
+          waveformRowsContainer.scrollHeight > waveformRowsContainer.clientHeight;
+
+        if (hasScrollbar) {
+          // When scrollbar is present, set width based on actual scrollbar width
           const currentScrollbarWidth =
             waveformRowsContainer.offsetWidth - waveformRowsContainer.clientWidth;
           if (currentScrollbarWidth > 0) {
             scrollbarSpacer.style.width = `${currentScrollbarWidth}px`;
+            scrollbarSpacer.style.display = 'block';
           }
+        } else {
+          // When no scrollbar is present, hide the spacer completely
+          scrollbarSpacer.style.width = '0px';
+          scrollbarSpacer.style.display = 'none';
         }
 
-        // Method 2: Use a temporary div for initial calculation when container doesn't have scrollbar yet
+        // Measure browser's default scrollbar width using a temporary div
+        // This is useful for initial calculation and as a fallback
         const tempDiv = document.createElement('div');
         tempDiv.style.cssText = `
           width: 100px;
@@ -268,17 +278,18 @@ export class WaveformViewer {
           visibility: hidden;
           top: -9999px;
         `;
-        tempDiv.style.top = '-9999px';
         document.body.appendChild(tempDiv);
-
-        // Calculate scrollbar width
         const scrollbarWidth = tempDiv.offsetWidth - tempDiv.clientWidth;
-
-        // Remove the temporary div
         document.body.removeChild(tempDiv);
 
-        // Set the scrollbar spacer width
-        scrollbarSpacer.style.width = `${scrollbarWidth}px`;
+        // Only use this measurement if we have a scrollbar but couldn't detect width
+        if (
+          hasScrollbar &&
+          (scrollbarSpacer.style.width === '0px' || !scrollbarSpacer.style.width)
+        ) {
+          scrollbarSpacer.style.width = `${scrollbarWidth}px`;
+          scrollbarSpacer.style.display = 'block';
+        }
       };
 
       // Initially set the width
