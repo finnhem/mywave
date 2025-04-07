@@ -53,21 +53,77 @@ export class SignalRenderer {
     // Store active signal name before clearing the container
     const _activeSignalName = window.SignalRow?.activeSignalName;
 
-    // Clear the container
-    this.waveformContainer.innerHTML = '';
+    // Check if we're toggling just a single signal's visibility
+    const toggledSignalName = window._lastToggledSignalName;
+    const isToggleOperation = toggledSignalName !== undefined;
 
-    // Render all visible signals directly
-    for (const signal of visibleSignals) {
-      this.renderSignalRow(signal, this.waveformContainer);
-    }
+    if (isToggleOperation) {
+      // For a toggle operation, we can optimize by only affecting the relevant row
+      const existingRow = this.waveformContainer.querySelector(
+        `.signal-row[data-signal-name="${toggledSignalName}"]`
+      );
 
-    // Ensure all waveform canvases are properly rendered
-    setTimeout(() => {
-      const canvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
-      for (const canvas of Array.from(canvases)) {
-        clearAndRedraw(canvas);
+      const isNowVisible = visibleSignals.some((s) => s.name === toggledSignalName);
+
+      if (existingRow && !isNowVisible) {
+        // If the row exists and signal is now invisible, just hide it with CSS
+        // instead of removing it to maintain its position in the DOM
+        existingRow.classList.add('hidden-signal-row');
+        (existingRow as HTMLElement).style.display = 'none';
+
+        // We don't need to remove the canvas from cursor.canvases
+        // as it will be skipped when invisible
+      } else if (!existingRow && isNowVisible) {
+        // If row doesn't exist and signal is now visible, add it
+        const signal = visibleSignals.find((s) => s.name === toggledSignalName);
+        if (signal) {
+          this.renderSignalRow(signal, this.waveformContainer);
+
+          // Render it immediately
+          setTimeout(() => {
+            const canvas = this.waveformContainer?.querySelector(
+              `.signal-row[data-signal-name="${toggledSignalName}"] .waveform-canvas`
+            ) as HTMLCanvasElement;
+            if (canvas) {
+              clearAndRedraw(canvas);
+            }
+          }, 0);
+        }
+      } else if (existingRow && isNowVisible) {
+        // If the row exists and was previously hidden, make it visible again
+        existingRow.classList.remove('hidden-signal-row');
+        (existingRow as HTMLElement).style.display = '';
+
+        // Redraw its canvas
+        setTimeout(() => {
+          const canvas = existingRow.querySelector('.waveform-canvas') as HTMLCanvasElement;
+          if (canvas) {
+            clearAndRedraw(canvas);
+          }
+        }, 0);
       }
-    }, 10);
+
+      // Reset the toggled signal name after handling it
+      window._lastToggledSignalName = undefined;
+    } else {
+      // For non-toggle operations, do the full redraw
+
+      // Clear the container
+      this.waveformContainer.innerHTML = '';
+
+      // Render all visible signals directly
+      for (const signal of visibleSignals) {
+        this.renderSignalRow(signal, this.waveformContainer);
+      }
+
+      // Ensure all waveform canvases are properly rendered
+      setTimeout(() => {
+        const canvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
+        for (const canvas of Array.from(canvases)) {
+          clearAndRedraw(canvas);
+        }
+      }, 10);
+    }
 
     // Record cache performance metrics for this rendering operation
     const waveformStats = cacheManager.getStats('waveforms');
@@ -100,7 +156,7 @@ export class SignalRenderer {
    * @param signal - Signal to render
    * @param container - Container element
    */
-  private renderSignalRow(signal: Signal, container: HTMLElement): void {
+  public renderSignalRow(signal: Signal, container: HTMLElement): void {
     // Create row container using grid layout matching the header
     const row = document.createElement('div');
     row.classList.add('signal-row');
@@ -287,6 +343,7 @@ export class SignalRenderer {
 declare global {
   interface Window {
     signals?: Signal[];
+    _lastToggledSignalName?: string;
   }
 
   interface HTMLCanvasElement {

@@ -274,12 +274,15 @@ export class HierarchyManager {
       this.toggleChildrenVisibility(node, node.visible);
     }
 
+    // For individual signal nodes, we can optimize by only updating the required rows
+    if (node.isSignal && node.signalData && typeof window.updateDisplayedSignals === 'function') {
+      // Store the signal name we're toggling for later reference
+      window._lastToggledSignalName = node.signalData.name;
+    }
+
     // Update displayed signals
     if (typeof window.updateDisplayedSignals === 'function') {
       window.updateDisplayedSignals();
-
-      // The updateDisplayedSignals function now includes redrawing the waveforms
-      // so we don't need a separate redraw call here
     }
 
     return node.visible;
@@ -365,6 +368,8 @@ export class HierarchyManager {
 declare global {
   interface Window {
     updateDisplayedSignals?: () => void;
+    getSignalRenderer?: () => { renderSignalRow: (signal: Signal, container: HTMLElement) => void };
+    _lastToggledSignalName?: string;
     SignalRow?: {
       activeSignalName?: string | null;
       [key: string]: unknown;

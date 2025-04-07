@@ -49,8 +49,16 @@ declare global {
     formatSignalValue: (value: string, signal: Signal) => string;
     clearAndRedraw: (canvas: HTMLCanvasElement) => void;
     getSignalValueAtTime: (signal: Signal, time: number) => string | undefined;
-    cursor: CursorState;
+    cursor: {
+      currentTime: number;
+      startTime: number;
+      endTime: number;
+      canvases: HTMLCanvasElement[];
+      setTime: (time: number) => void;
+      [key: string]: unknown;
+    };
     updateDisplayedSignals?: () => void;
+    _lastToggledSignalName?: string;
     SignalRow?: {
       activeSignalName?: string | null;
       [key: string]: unknown;
@@ -319,7 +327,7 @@ export class WaveformViewer {
     window.formatSignalValue = formatSignalValue;
     window.clearAndRedraw = clearAndRedraw;
     window.getSignalValueAtTime = getSignalValueAtTime;
-    window.cursor = cursor;
+    window.cursor = cursor as unknown as typeof window.cursor;
 
     // Initialize SignalRow if needed
     if (!window.SignalRow) {
@@ -662,4 +670,4 @@ window.signalPreferences = signalPreferences;
 window.formatSignalValue = formatSignalValue;
 window.clearAndRedraw = clearAndRedraw;
 window.getSignalValueAtTime = getSignalValueAtTime;
-window.cursor = cursor;
+window.cursor = cursor as unknown as typeof window.cursor;
