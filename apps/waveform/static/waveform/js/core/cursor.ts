@@ -27,11 +27,15 @@ class CursorManager implements CursorState {
   /** Previously active canvas */
   private previousActiveCanvas: HTMLCanvasElement | null = null;
 
+  /** Flag to enable/disable automatic centering on cursor updates */
+  private autoCenterOnUpdate = true;
+
   /**
    * Updates the cursor position and triggers redraw.
    * @param newTime - New cursor time position
+   * @param center - Whether to center the view on the new cursor position (default: true)
    */
-  setTime(newTime: number): void {
+  setTime(newTime: number, center = true): void {
     // Store previous time for event
     const previousTime = this.currentTime;
 
@@ -40,6 +44,11 @@ class CursorManager implements CursorState {
 
     // Update display
     this.updateDisplay();
+
+    // Center viewport on cursor position if requested and auto-centering is enabled
+    if (center && this.autoCenterOnUpdate) {
+      viewport.centerOn(this.currentTime);
+    }
 
     // Emit cursor change event
     eventManager.emit({
@@ -52,23 +61,26 @@ class CursorManager implements CursorState {
   /**
    * Updates the cursor position (alias for setTime).
    * @param newTime - New cursor time position
+   * @param center - Whether to center the view on the new cursor position (default: true)
    */
-  updateTime(newTime: number): void {
-    this.setTime(newTime);
+  updateTime(newTime: number, center = true): void {
+    this.setTime(newTime, center);
   }
 
   /**
    * Moves the cursor to the start of the time range.
+   * @param center - Whether to center the view on the start position (default: true)
    */
-  moveToStart(): void {
-    this.setTime(this.startTime);
+  moveToStart(center = true): void {
+    this.setTime(this.startTime, center);
   }
 
   /**
    * Moves the cursor to the end of the time range.
+   * @param center - Whether to center the view on the end position (default: true)
    */
-  moveToEnd(): void {
-    this.setTime(this.endTime);
+  moveToEnd(center = true): void {
+    this.setTime(this.endTime, center);
   }
 
   /**
@@ -94,6 +106,22 @@ class CursorManager implements CursorState {
   }
 
   /**
+   * Enables or disables automatic centering when cursor position is updated.
+   * @param enable - Whether to enable auto-centering (true by default)
+   */
+  setAutoCentering(enable: boolean): void {
+    this.autoCenterOnUpdate = enable;
+  }
+
+  /**
+   * Returns the current auto-centering setting.
+   * @returns Current auto-centering state
+   */
+  getAutoCentering(): boolean {
+    return this.autoCenterOnUpdate;
+  }
+
+  /**
    * Calculates the cursor time from a click on a canvas.
    * @param canvas - Canvas that was clicked
    * @param clientX - Client X coordinate of the click
@@ -113,8 +141,9 @@ class CursorManager implements CursorState {
    * Handles a click on a canvas to update the cursor position.
    * @param canvas - Canvas that was clicked
    * @param clientX - Client X coordinate of the click
+   * @param center - Whether to center the view on the clicked position (default: true)
    */
-  handleCanvasClick(canvas: HTMLCanvasElement, clientX: number): void {
+  handleCanvasClick(canvas: HTMLCanvasElement, clientX: number, center = false): void {
     // Set canvas as active
     this.setActiveCanvas(canvas);
 
@@ -122,7 +151,8 @@ class CursorManager implements CursorState {
     const time = this.getTimeFromCanvasClick(canvas, clientX);
 
     // Update cursor position
-    this.setTime(time);
+    // Don't auto-center on canvas clicks, as the cursor is already under the mouse
+    this.setTime(time, center);
   }
 
   /**
@@ -144,15 +174,21 @@ export const cursor = new CursorManager();
  * Utility function to handle canvas click and update cursor position
  * @param canvas - Canvas that was clicked
  * @param clientX - Client X coordinate of the click
+ * @param center - Whether to center the view on the clicked position (default: false)
  */
-export function handleCanvasClick(canvas: HTMLCanvasElement, clientX: number): void {
-  cursor.handleCanvasClick(canvas, clientX);
+export function handleCanvasClick(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  center = false
+): void {
+  cursor.handleCanvasClick(canvas, clientX, center);
 }
 
 /**
  * Utility function to move cursor to a specific time
  * @param time - Time to move the cursor to
+ * @param center - Whether to center the view on the new cursor position (default: true)
  */
-export function moveCursorTo(time: number): void {
-  cursor.setTime(time);
+export function moveCursorTo(time: number, center = true): void {
+  cursor.setTime(time, center);
 }

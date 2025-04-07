@@ -5,6 +5,7 @@
  */
 
 import { cursor } from '../core/cursor';
+import { viewport } from '../core/viewport';
 import { type CursorChangeEvent, eventManager } from '../services/events';
 import { formatSignalValue, getSignalRadix } from '../services/radix';
 import type { Signal } from '../types';
