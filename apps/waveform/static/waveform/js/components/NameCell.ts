@@ -3,6 +3,7 @@
  */
 
 import { BaseCell } from './BaseCell';
+import { STYLES } from '../utils/styles';
 
 export class NameCell extends BaseCell {
   /**
@@ -10,8 +11,7 @@ export class NameCell extends BaseCell {
    */
   protected createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className =
-      'signal-name-cell text-sm flex items-center px-2.5 overflow-hidden whitespace-nowrap text-ellipsis hover:text-blue-600';
+    cell.className = `signal-name-cell ${STYLES.CELLS.NAME} text-sm flex items-center hover:text-blue-600`;
     cell.textContent = this.signal.name;
 
     // Add tooltip for long names

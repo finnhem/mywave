@@ -11,6 +11,7 @@ import { CacheableCanvas } from '../ui/CacheableCanvas';
 import { drawWaveform } from '../ui/waveform';
 import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
+import { STYLES } from '../utils/styles';
 
 // Export a compatibility layer for existing code
 export const canvasDimensionsCache = {
@@ -71,10 +72,10 @@ export class WaveformCell extends BaseCell {
    */
   createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className = 'waveform-canvas-container h-10';
+    cell.className = `waveform-canvas-container ${STYLES.CELLS.WAVEFORM}`;
 
     // Create and set up canvas
-    this._canvas.className = 'w-full h-full block';
+    this._canvas.className = `${STYLES.CANVAS.BASE}`;
 
     // Set up event handlers if signal has data
     if (this.signal.data && this.signal.data.length > 0) {

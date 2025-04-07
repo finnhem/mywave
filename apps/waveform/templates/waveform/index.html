@@ -46,7 +46,8 @@
             <div id="waveform-display-container" class="flex flex-col overflow-hidden relative flex-grow min-w-fit">
                 <div class="flex items-stretch min-w-fit">
                     <div class="waveform-header-row grid grid-cols-[300px_100px_50px_1fr] items-stretch h-10 font-bold bg-white sticky top-0 z-10 flex-grow"
-                         data-grid-layout="waveform-grid">
+                         data-grid-layout="waveform-grid"
+                         data-style="header-row">
                         <div class="flex items-center px-2.5" data-style="header-name-cell">Signals</div>
                         <div class="flex items-center justify-center" data-style="header-value-cell">Value</div>
                         <div class="flex items-center justify-center" data-style="header-radix-cell">Radix</div>
@@ -63,7 +64,7 @@
                          data-style="signal-row-base"
                          data-grid-layout="waveform-grid">
                         <div class="overflow-hidden text-ellipsis whitespace-nowrap px-2.5" data-style="cell-name"></div>
-                        <div class="flex justify-center text-right font-mono text-sm w-full px-2.5" data-style="cell-value"></div>
+                        <div class="flex justify-end text-right font-mono text-sm w-full px-2.5" data-style="cell-value"></div>
                         <div class="flex justify-center" data-style="cell-radix"></div>
                         <div class="overflow-hidden min-w-0 h-10" data-style="cell-waveform">
                             <canvas class="w-full h-full block" data-style="canvas-base"></canvas>

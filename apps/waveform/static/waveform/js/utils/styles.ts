@@ -21,6 +21,7 @@ export const STYLES = {
   CELLS: {
     NAME: 'overflow-hidden text-ellipsis whitespace-nowrap px-2.5',
     VALUE: 'flex justify-end text-right font-mono text-sm w-full px-2.5',
+    VALUE_TEXT: 'font-mono text-sm w-full text-right tabular-nums',
     RADIX: 'flex justify-center',
     WAVEFORM: 'overflow-hidden min-w-0 h-10',
   },

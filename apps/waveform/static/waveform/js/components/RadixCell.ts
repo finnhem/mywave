@@ -7,6 +7,7 @@ import { eventManager } from '../services/events';
 import { getSignalRadix, updateSignalRadix } from '../services/radix';
 import type { Signal } from '../types';
 import { BaseCell } from './BaseCell';
+import { STYLES } from '../utils/styles';
 
 // UI representation types
 type RadixType = 'BIN' | 'HEX' | 'UDEC' | 'SDEC';
@@ -20,13 +21,6 @@ const radixTooltips: Record<RadixType, string> = {
   UDEC: 'Unsigned Decimal - Click to change format',
 };
 
-const radixStyles: Record<RadixType, string> = {
-  BIN: 'text-gray-500',
-  HEX: 'text-indigo-600',
-  SDEC: 'text-green-600',
-  UDEC: 'text-blue-600',
-};
-
 export class RadixCell extends BaseCell {
   private radixDisplay: HTMLDivElement = document.createElement('div');
 
@@ -36,11 +30,11 @@ export class RadixCell extends BaseCell {
    */
   createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className = 'radix-cell flex justify-center items-center';
+    cell.className = `radix-cell ${STYLES.CELLS.RADIX}`;
     cell.setAttribute('data-signal-name', this.signal.name);
 
     // Create radix display element
-    this.radixDisplay.className = 'radix-display text-xs uppercase font-bold cursor-pointer';
+    this.radixDisplay.className = `radix-display ${STYLES.RADIX.BASE}`;
 
     // Get initial radix
     const initialRadix = getSignalRadix(this.signal.name);
@@ -68,12 +62,12 @@ export class RadixCell extends BaseCell {
 
     // Update styling
     this.radixDisplay.classList.remove(
-      'text-gray-500',
-      'text-indigo-600',
-      'text-green-600',
-      'text-blue-600'
+      STYLES.RADIX.BIN,
+      STYLES.RADIX.HEX,
+      STYLES.RADIX.SDEC,
+      STYLES.RADIX.UDEC
     );
-    this.radixDisplay.classList.add(radixStyles[radix]);
+    this.radixDisplay.classList.add(STYLES.RADIX[radix]);
   }
 
   /**

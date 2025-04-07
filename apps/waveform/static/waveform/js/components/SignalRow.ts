@@ -12,6 +12,7 @@ import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
 import { WaveformCell, canvasDimensionsCache } from './WaveformCell';
+import { STYLES, GRID_LAYOUTS } from '../utils/styles';
 
 interface SignalRowOptions {
   [key: string]: unknown;
@@ -108,7 +109,7 @@ export class SignalRow {
    */
   private createElement(): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'signal-row flex items-center border-b border-gray-200 hover:bg-gray-50';
+    row.className = `signal-row ${STYLES.SIGNAL_ROW.BASE}`;
     row.setAttribute('data-signal-name', this.signal.name);
 
     // Use render method for cells instead of createElement

@@ -14,6 +14,7 @@ import { formatSignalValue } from '../services/radix';
 import { Signal, TimePoint } from '../types';
 import { getSignalValueAtTime } from '../utils/format';
 import { BaseCell } from './BaseCell';
+import { STYLES } from '../utils/styles';
 
 export class ValueCell extends BaseCell {
   private textSpan!: HTMLSpanElement;
@@ -30,12 +31,12 @@ export class ValueCell extends BaseCell {
    */
   createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className = 'value-cell value-display flex items-center justify-end w-[120px] pr-2 pl-2';
+    cell.className = `value-cell ${STYLES.CELLS.VALUE}`;
     cell.setAttribute('data-signal-name', this.signal.name);
 
     // Create text span for the value
     this.textSpan = document.createElement('span');
-    this.textSpan.className = 'font-mono text-sm w-full text-right tabular-nums';
+    this.textSpan.className = STYLES.CELLS.VALUE_TEXT;
 
     cell.appendChild(this.textSpan);
 

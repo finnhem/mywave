@@ -189,7 +189,7 @@ export class SignalRenderer {
 
     // Create value display span
     const valueSpan = document.createElement('span');
-    valueSpan.className = 'font-mono text-sm w-full text-right tabular-nums';
+    valueSpan.className = STYLES.CELLS.VALUE_TEXT;
     valueCell.appendChild(valueSpan);
 
     // Initial value update
