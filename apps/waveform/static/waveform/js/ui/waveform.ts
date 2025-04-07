@@ -426,7 +426,8 @@ export function drawTimeline(canvas: HTMLCanvasElement): void {
     ctx.lineTo(x, height);
 
     // Draw label
-    const timeLabel = formatTime(time);
+    // Use window.timescale to ensure consistent time unit display
+    const timeLabel = formatTime(time, window.timescale);
     ctx.fillText(timeLabel, x, height - 15);
   }
 
