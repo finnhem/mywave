@@ -20,7 +20,7 @@ export const STYLES = {
   // Cell styling
   CELLS: {
     NAME: 'overflow-hidden text-ellipsis whitespace-nowrap px-2.5',
-    VALUE: 'flex justify-center text-right font-mono text-sm w-full px-2.5',
+    VALUE: 'flex justify-end text-right font-mono text-sm w-full px-2.5',
     RADIX: 'flex justify-center',
     WAVEFORM: 'overflow-hidden min-w-0 h-10',
   },
@@ -77,7 +77,7 @@ export function classNames(
  */
 export function applyStyles(element: HTMLElement, styles: Record<string, string>): void {
   for (const [property, value] of Object.entries(styles)) {
-    // Use more specific type but still allow any CSS property
-    (element.style as any)[property] = value;
+    // Use type-safe property assignment
+    element.style.setProperty(property, value);
   }
 }

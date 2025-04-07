@@ -287,40 +287,67 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
       ctx.stroke();
     }
 
-    // Only draw text if there's enough space (at least 40px wide)
+    // Check if there's a next point to determine segment width
     if (i < visibleData.length - 1) {
       const nextPoint = visibleData[i + 1];
       const nextX = timeToCanvasX(nextPoint.time, visibleRange.start, visibleRange.end, width);
 
-      // Draw text if there's enough space
-      if (nextX - x > 40) {
-        // Calculate box width, leaving space for transition lines
-        const boxWidth = nextX - x - 2;
+      // Calculate box width, leaving space for transition lines
+      const boxWidth = nextX - x - 2;
 
-        // Draw the value box
-        drawTextBox(
-          ctx,
-          x + 1,
-          centerY - boxHeight / 2,
-          boxWidth,
-          boxHeight,
-          formattedValue,
-          isActive ? '#e0e7ff' : '#f8fafc'
-        );
+      // Always draw the rectangular box, regardless of width
+      const fillColor = isActive ? '#e0e7ff' : '#f8fafc';
+
+      // Draw the box
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+
+      // Draw the border
+      ctx.strokeRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+
+      // Calculate the width needed for the text based on its content
+      ctx.font = '12px sans-serif';
+      const textWidth = ctx.measureText(formattedValue).width;
+      // Add some padding for better appearance
+      const requiredWidth = textWidth + 10;
+
+      // Only draw text if there's enough space for this specific text
+      if (boxWidth > requiredWidth) {
+        // Draw text in the box
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(formattedValue, x + 1 + boxWidth / 2, centerY);
       }
-    } else if (width - x > 40) {
-      // For the last point, draw text if there's enough space to the edge
+    } else if (width - x > 1) {
+      // Last point
+      // For the last point, draw box to the edge
       const boxWidth = width - x - 1;
 
-      drawTextBox(
-        ctx,
-        x + 1,
-        centerY - boxHeight / 2,
-        boxWidth,
-        boxHeight,
-        formattedValue,
-        isActive ? '#e0e7ff' : '#f8fafc'
-      );
+      // Always draw the rectangular box, regardless of width
+      const fillColor = isActive ? '#e0e7ff' : '#f8fafc';
+
+      // Draw the box
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+
+      // Draw the border
+      ctx.strokeRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+
+      // Calculate the width needed for the text based on its content
+      ctx.font = '12px sans-serif';
+      const textWidth = ctx.measureText(formattedValue).width;
+      // Add some padding for better appearance
+      const requiredWidth = textWidth + 10;
+
+      // Only draw text if there's enough space for this specific text
+      if (boxWidth > requiredWidth) {
+        // Draw text in the box
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(formattedValue, x + 1 + boxWidth / 2, centerY);
+      }
     }
 
     _lastX = x;

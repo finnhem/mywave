@@ -30,7 +30,7 @@ export class ValueCell extends BaseCell {
    */
   createElement(): HTMLElement {
     const cell = document.createElement('div');
-    cell.className = 'value-cell value-display flex items-center w-[120px] pr-2 pl-2';
+    cell.className = 'value-cell value-display flex items-center justify-end w-[120px] pr-2 pl-2';
     cell.setAttribute('data-signal-name', this.signal.name);
 
     // Create text span for the value
