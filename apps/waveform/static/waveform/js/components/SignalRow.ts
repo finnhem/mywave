@@ -8,11 +8,11 @@ import { type CanvasClickEvent, type SignalSelectEvent, eventManager } from '../
 import type { Signal } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
 import { drawWaveform } from '../ui/waveform';
+import { GRID_LAYOUTS, STYLES } from '../utils/styles';
 import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
 import { WaveformCell, canvasDimensionsCache } from './WaveformCell';
-import { STYLES, GRID_LAYOUTS } from '../utils/styles';
 
 interface SignalRowOptions {
   [key: string]: unknown;

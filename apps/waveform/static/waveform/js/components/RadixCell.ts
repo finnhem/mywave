@@ -6,8 +6,8 @@
 import { eventManager } from '../services/events';
 import { getSignalRadix, updateSignalRadix } from '../services/radix';
 import type { Signal } from '../types';
-import { BaseCell } from './BaseCell';
 import { STYLES } from '../utils/styles';
+import { BaseCell } from './BaseCell';
 
 // UI representation types
 type RadixType = 'BIN' | 'HEX' | 'UDEC' | 'SDEC';

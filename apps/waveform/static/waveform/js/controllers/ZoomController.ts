@@ -76,99 +76,206 @@ export class ZoomController {
    * Initialize mouse wheel zoom functionality
    */
   private initializeMouseWheelZoom(): void {
-    const waveformContainer = document.getElementById('waveform-rows-container');
-    if (waveformContainer) {
-      waveformContainer.addEventListener(
+    // First, add event listener to the waveform-rows-container (parent of all signal rows)
+    const rowsContainer = document.getElementById('waveform-rows-container');
+    if (rowsContainer) {
+      // Use event delegation to catch all wheel events in the container
+      rowsContainer.addEventListener(
         'wheel',
-        (event) => {
-          // Prevent default to stop page scrolling
-          if (event.ctrlKey) {
-            event.preventDefault();
-
-            // Calculate time at mouse position
-            const element = event.currentTarget as HTMLElement;
-            const rect = element.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const ratio = x / rect.width;
-            const timeRange = viewport.getVisibleRange();
-            const timeAtMouse = timeRange.start + ratio * (timeRange.end - timeRange.start);
-
-            // Zoom in or out centered at mouse position
-            if (event.deltaY < 0) {
-              viewport.zoomIn(timeAtMouse);
-            } else {
-              // Don't zoom out if already at minimum zoom level
-              if (viewport.zoomLevel > 1.0) {
-                viewport.zoomOut(timeAtMouse);
-              }
-            }
-
-            this.updateZoomDisplay();
-          }
-        },
-        { passive: false }
+        ((event: Event) => {
+          this.handleWheel(event as WheelEvent);
+        }) as EventListener,
+        { passive: false, capture: true }
       );
+    }
 
-      // Also add mouse wheel zoom to timeline
-      const timelineContainer = document.getElementById('timeline-container');
-      if (timelineContainer) {
-        timelineContainer.addEventListener(
-          'wheel',
-          (event) => {
-            if (event.ctrlKey) {
-              event.preventDefault();
+    // Also add to waveform-cell elements
+    const waveformCells = document.querySelectorAll('.waveform-cell');
+    for (const cell of Array.from(waveformCells)) {
+      cell.addEventListener(
+        'wheel',
+        ((event: Event) => {
+          this.handleWheel(event as WheelEvent);
+        }) as EventListener,
+        { passive: false, capture: true }
+      );
+    }
 
-              // Calculate time at mouse position
-              const element = event.currentTarget as HTMLElement;
-              const rect = element.getBoundingClientRect();
-              const x = event.clientX - rect.left;
-              const ratio = x / rect.width;
-              const timeRange = viewport.getVisibleRange();
-              const timeAtMouse = timeRange.start + ratio * (timeRange.end - timeRange.start);
+    // Direct binding to each canvas for maximum reliability
+    const waveformCanvases = document.querySelectorAll('canvas.waveform-canvas');
+    for (const canvas of Array.from(waveformCanvases)) {
+      canvas.addEventListener(
+        'wheel',
+        ((event: Event) => {
+          this.handleWheel(event as WheelEvent);
+        }) as EventListener,
+        { passive: false, capture: true }
+      );
+    }
 
-              if (event.deltaY < 0) {
-                viewport.zoomIn(timeAtMouse);
-              } else {
-                // Don't zoom out if already at minimum zoom level
-                if (viewport.zoomLevel > 1.0) {
-                  viewport.zoomOut(timeAtMouse);
-                }
-              }
+    // Also add mouse wheel zoom to timeline
+    const timelineContainer = document.getElementById('timeline-container');
+    if (timelineContainer) {
+      timelineContainer.addEventListener(
+        'wheel',
+        ((event: Event) => {
+          this.handleWheel(event as WheelEvent);
+        }) as EventListener,
+        { passive: false, capture: true }
+      );
+    }
+  }
 
-              this.updateZoomDisplay();
-            }
-          },
-          { passive: false }
-        );
+  /**
+   * Handle wheel event for zooming
+   */
+  private handleWheel(event: WheelEvent): void {
+    // Only handle wheel events with ctrl key (zoom)
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+
+      // Find the actual waveform cell or canvas that should be used for position calculation
+      const target = event.target as HTMLElement;
+      const waveformCell = this.findWaveformCell(target, event.clientY);
+
+      if (!waveformCell) {
+        console.warn('Could not find waveform cell for zoom calculation');
+        return;
+      }
+
+      // Calculate time at mouse position using the waveform cell dimensions
+      const rect = waveformCell.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const ratio = x / rect.width;
+      const timeRange = viewport.getVisibleRange();
+      const timeAtMouse = timeRange.start + ratio * (timeRange.end - timeRange.start);
+
+      // Apply zoom based on wheel delta
+      if (event.deltaY < 0) {
+        viewport.zoomIn(timeAtMouse);
+      } else {
+        // Don't zoom out if already at minimum zoom level
+        if (viewport.zoomLevel > 1.0) {
+          viewport.zoomOut(timeAtMouse);
+        }
+      }
+
+      this.updateZoomDisplay();
+    }
+  }
+
+  /**
+   * Find the waveform cell element to use for position calculations
+   */
+  private findWaveformCell(element: HTMLElement, clientY?: number): HTMLElement | null {
+    // If the element is a canvas or has waveform-canvas class, use its parent (waveform-cell)
+    if (element.tagName === 'CANVAS' || element.classList.contains('waveform-canvas')) {
+      return element.parentElement;
+    }
+
+    // If element is already a waveform cell, use it
+    if (
+      element.classList.contains('waveform-cell') ||
+      element.classList.contains('waveform-canvas-container')
+    ) {
+      return element;
+    }
+
+    // If we're in a signal row, find the waveform cell within it
+    if (element.classList.contains('signal-row')) {
+      const waveformCell = element.querySelector('.waveform-cell');
+      if (waveformCell) {
+        return waveformCell as HTMLElement;
       }
     }
+
+    // If we're in the container AND we have a clientY position, find which signal row is under that position
+    if (element.id === 'waveform-rows-container' && clientY !== undefined) {
+      // Find all signal rows
+      const rows = element.querySelectorAll('.signal-row');
+      for (const row of Array.from(rows)) {
+        const rowRect = row.getBoundingClientRect();
+        // Check if the event is within this row's vertical bounds
+        if (clientY >= rowRect.top && clientY <= rowRect.bottom) {
+          const waveformCell = row.querySelector('.waveform-cell');
+          if (waveformCell) {
+            return waveformCell as HTMLElement;
+          }
+        }
+      }
+    }
+
+    // If we can't find a specific cell, and the element has a parent, try that
+    if (element.parentElement) {
+      return this.findWaveformCell(element.parentElement, clientY);
+    }
+
+    // If all else fails, return null
+    return null;
   }
 
   /**
    * Initialize CTRL-Drag zoom functionality
    */
   private initializeCtrlDragZoom(): void {
-    const waveformContainer = document.getElementById('waveform-rows-container');
+    // Main container for event delegation
+    const rowsContainer = document.getElementById('waveform-rows-container');
     const timelineContainer = document.getElementById('timeline-container');
 
-    const containers = [waveformContainer, timelineContainer].filter(Boolean);
+    // Create an array of all containers to apply zoom to
+    const containers: HTMLElement[] = [];
 
+    if (rowsContainer) {
+      containers.push(rowsContainer);
+    }
+
+    if (timelineContainer) {
+      containers.push(timelineContainer);
+    }
+
+    // Also add direct listeners to canvases for maximum compatibility
+    const waveformCanvases = document.querySelectorAll<HTMLCanvasElement>('canvas.waveform-canvas');
+    for (const canvas of Array.from(waveformCanvases)) {
+      containers.push(canvas);
+    }
+
+    // Add drag zoom to each container
     for (const container of containers) {
-      if (!container) continue;
+      this.addDragZoomToContainer(container);
+    }
+  }
 
-      let isDragging = false;
-      let startX = 0;
-      let startTime = 0;
+  /**
+   * Add drag zoom functionality to a specific container
+   */
+  private addDragZoomToContainer(container: HTMLElement): void {
+    let isDragging = false;
+    let startX = 0;
+    let startTime = 0;
+    let activeWaveformCell: HTMLElement | null = null;
 
-      // Mouse down event - start of drag
-      container.addEventListener('mousedown', (event) => {
-        if (event.ctrlKey) {
-          event.preventDefault();
+    // Mouse down event - start of drag
+    container.addEventListener(
+      'mousedown',
+      ((event: Event) => {
+        const mouseEvent = event as MouseEvent;
+        if (mouseEvent.ctrlKey) {
+          mouseEvent.preventDefault();
           isDragging = true;
-          startX = event.clientX;
+          startX = mouseEvent.clientX;
 
-          // Calculate time at start position
-          const rect = container.getBoundingClientRect();
+          // Find the actual waveform cell to use for calculations
+          const target = mouseEvent.target as HTMLElement;
+          activeWaveformCell = this.findWaveformCell(target, mouseEvent.clientY);
+
+          if (!activeWaveformCell) {
+            console.warn('Could not find waveform cell for drag calculation');
+            isDragging = false;
+            return;
+          }
+
+          // Calculate time at start position using the waveform cell dimensions
+          const rect = activeWaveformCell.getBoundingClientRect();
           const _ratio = (startX - rect.left) / rect.width;
           const _timeRange = viewport.getVisibleRange();
           startTime = _timeRange.start + _ratio * (_timeRange.end - _timeRange.start);
@@ -176,27 +283,37 @@ export class ZoomController {
           // Add visual feedback for dragging
           container.style.cursor = 'ew-resize';
         }
-      });
+      }) as EventListener,
+      { capture: true }
+    );
 
-      // Mouse move event - during drag
-      container.addEventListener('mousemove', (event) => {
-        if (isDragging && event.ctrlKey) {
-          event.preventDefault();
+    // Mouse move event - during drag
+    container.addEventListener(
+      'mousemove',
+      ((event: Event) => {
+        const mouseEvent = event as MouseEvent;
+        if (isDragging && mouseEvent.ctrlKey && activeWaveformCell) {
+          mouseEvent.preventDefault();
 
           // Create visual indication of selection
-          this.showZoomSelection(container, startX, event.clientX);
+          this.showZoomSelection(activeWaveformCell, startX, mouseEvent.clientX);
         }
-      });
+      }) as EventListener,
+      { capture: true }
+    );
 
-      // Mouse up event - end of drag
-      container.addEventListener('mouseup', (event) => {
-        if (isDragging && event.ctrlKey) {
-          event.preventDefault();
+    // Mouse up event - end of drag
+    container.addEventListener(
+      'mouseup',
+      ((event: Event) => {
+        const mouseEvent = event as MouseEvent;
+        if (isDragging && mouseEvent.ctrlKey && activeWaveformCell) {
+          mouseEvent.preventDefault();
           isDragging = false;
 
-          // Calculate time at end position
-          const rect = container.getBoundingClientRect();
-          const ratio = (event.clientX - rect.left) / rect.width;
+          // Calculate time at end position using the waveform cell dimensions
+          const rect = activeWaveformCell.getBoundingClientRect();
+          const ratio = (mouseEvent.clientX - rect.left) / rect.width;
           const timeRange = viewport.getVisibleRange();
           const endTime = timeRange.start + ratio * (timeRange.end - timeRange.start);
 
@@ -206,6 +323,9 @@ export class ZoomController {
           // Reset cursor
           container.style.cursor = '';
 
+          // Clear active waveform cell reference
+          activeWaveformCell = null;
+
           // Apply zoom to the selected range (if meaningful)
           if (Math.abs(endTime - startTime) > 0.0001) {
             const minTime = Math.min(startTime, endTime);
@@ -214,35 +334,45 @@ export class ZoomController {
             this.updateZoomDisplay();
           }
         }
-      });
+      }) as EventListener,
+      { capture: true }
+    );
 
-      // Mouse leave - cancel drag
-      container.addEventListener('mouseleave', () => {
+    // Mouse leave - cancel drag
+    container.addEventListener(
+      'mouseleave',
+      ((_event: Event) => {
         if (isDragging) {
           isDragging = false;
           container.style.cursor = '';
           this.clearZoomSelection();
         }
-      });
+      }) as EventListener,
+      { capture: true }
+    );
 
-      // Handle case where ctrl is released during drag
-      document.addEventListener('keyup', (event) => {
-        if (!event.ctrlKey && isDragging) {
+    // Handle case where ctrl is released during drag
+    document.addEventListener(
+      'keyup',
+      ((event: Event) => {
+        const keyEvent = event as KeyboardEvent;
+        if (!keyEvent.ctrlKey && isDragging) {
           isDragging = false;
           container.style.cursor = '';
           this.clearZoomSelection();
         }
-      });
-    }
+      }) as EventListener,
+      { capture: true }
+    );
   }
 
   /**
    * Shows visual zoom selection between two x coordinates
-   * @param container - The container element
-   * @param startX - Starting X coordinate
-   * @param endX - Ending X coordinate
+   * @param element - The element to add the selection to
+   * @param startX - Starting X coordinate (client coordinates)
+   * @param endX - Ending X coordinate (client coordinates)
    */
-  private showZoomSelection(container: HTMLElement, startX: number, endX: number): void {
+  private showZoomSelection(element: HTMLElement, startX: number, endX: number): void {
     // Remove any existing selection
     this.clearZoomSelection();
 
@@ -255,8 +385,8 @@ export class ZoomController {
     selection.style.zIndex = '100';
     selection.style.pointerEvents = 'none';
 
-    // Get container position
-    const rect = container.getBoundingClientRect();
+    // Get element position
+    const rect = element.getBoundingClientRect();
 
     // Calculate left and width
     const left = Math.min(startX, endX) - rect.left;
@@ -268,22 +398,26 @@ export class ZoomController {
     selection.style.width = `${width}px`;
     selection.style.height = '100%';
 
-    // Append to container
-    container.style.position = 'relative';
-    container.appendChild(selection);
+    // Make sure target element has relative positioning
+    if (window.getComputedStyle(element).position === 'static') {
+      element.style.position = 'relative';
+    }
+
+    // Append to element
+    element.appendChild(selection);
   }
 
   /**
    * Clears any zoom selection visual elements
    */
   private clearZoomSelection(): void {
-    const selection = document.getElementById('zoom-selection');
-    if (!selection) {
-      return;
-    }
+    // Find all zoom selection elements
+    const selectionElements = document.querySelectorAll('#zoom-selection');
 
-    if (selection.parentElement) {
-      selection.parentElement.removeChild(selection);
+    for (const selection of Array.from(selectionElements)) {
+      if (selection.parentElement) {
+        selection.parentElement.removeChild(selection);
+      }
     }
   }
 }

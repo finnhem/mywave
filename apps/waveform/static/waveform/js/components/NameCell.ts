@@ -2,8 +2,8 @@
  * NameCell component for displaying signal names
  */
 
-import { BaseCell } from './BaseCell';
 import { STYLES } from '../utils/styles';
+import { BaseCell } from './BaseCell';
 
 export class NameCell extends BaseCell {
   /**

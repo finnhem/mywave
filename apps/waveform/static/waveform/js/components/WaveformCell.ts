@@ -9,9 +9,9 @@ import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '..
 import type { Signal, TimePoint } from '../types';
 import { CacheableCanvas } from '../ui/CacheableCanvas';
 import { drawWaveform } from '../ui/waveform';
+import { STYLES } from '../utils/styles';
 import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
-import { STYLES } from '../utils/styles';
 
 // Export a compatibility layer for existing code
 export const canvasDimensionsCache = {

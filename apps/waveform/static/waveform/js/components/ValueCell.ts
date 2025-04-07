@@ -13,8 +13,8 @@ import {
 import { formatSignalValue } from '../services/radix';
 import { Signal, TimePoint } from '../types';
 import { getSignalValueAtTime } from '../utils/format';
-import { BaseCell } from './BaseCell';
 import { STYLES } from '../utils/styles';
+import { BaseCell } from './BaseCell';
 
 export class ValueCell extends BaseCell {
   private textSpan!: HTMLSpanElement;
