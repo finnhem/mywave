@@ -36,19 +36,27 @@ declare global {
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize upload form handling
   const uploadForm = document.getElementById('upload-form') as HTMLFormElement;
-  const statusElement = document.getElementById('file-upload-status');
+  const fileInput = document.getElementById('file-input') as HTMLInputElement;
+  const uploadButton = document.getElementById('upload-button') as HTMLButtonElement;
 
-  if (uploadForm) {
-    uploadForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      if (statusElement) {
-        statusElement.textContent = 'Uploading...';
-        statusElement.className = 'ml-auto text-blue-500';
+  if (uploadForm && fileInput && uploadButton) {
+    uploadButton.addEventListener('click', async () => {
+      // Check if a file is selected
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a VCD file to upload');
+        return;
       }
+      
+      // Create a FormData instance from the hidden form
+      const formData = new FormData(uploadForm);
+      
+      // Add the file from the file input
+      formData.set('vcd_file', fileInput.files[0]);
 
       try {
-        const formData = new FormData(uploadForm);
+        uploadButton.disabled = true;
+        uploadButton.textContent = 'Uploading...';
+        
         const response = await fetch(window.location.pathname, {
           method: 'POST',
           body: formData,
@@ -58,10 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = (await response.json()) as UploadApiResponse;
 
         if (result.success) {
-          if (statusElement) {
-            statusElement.textContent = 'File uploaded successfully!';
-            statusElement.className = 'ml-auto text-green-500';
-          }
+          uploadButton.textContent = 'Upload VCD file';
+          uploadButton.disabled = false;
 
           // Load the signals data into the viewer
           if (window.waveformViewer && result.signals) {
@@ -73,16 +79,15 @@ document.addEventListener('DOMContentLoaded', () => {
           throw error;
         }
       } catch (error) {
+        uploadButton.textContent = 'Upload VCD file';
+        uploadButton.disabled = false;
+        
         if (error instanceof FileUploadError) {
           console.error(`${error.name} (${error.code}):`, error.message);
+          alert(error.message);
         } else {
           console.error('Error uploading file:', error);
-        }
-
-        if (statusElement) {
-          statusElement.textContent =
-            error instanceof FileUploadError ? error.message : 'Error uploading file';
-          statusElement.className = 'ml-auto text-red-500';
+          alert('Error uploading file. Please try again.');
         }
       }
     });
