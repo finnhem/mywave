@@ -372,9 +372,16 @@ export class ZoomController {
    * @param startX - Starting X coordinate (client coordinates)
    * @param endX - Ending X coordinate (client coordinates)
    */
-  private showZoomSelection(element: HTMLElement, startX: number, endX: number): void {
+  private showZoomSelection(_element: HTMLElement, startX: number, endX: number): void {
     // Remove any existing selection
     this.clearZoomSelection();
+
+    // Get the waveform-display-container
+    const waveformDisplay = document.getElementById('waveform-display-container');
+    if (!waveformDisplay) {
+      console.warn('Could not find waveform-display-container');
+      return;
+    }
 
     // Create selection element
     const selection = document.createElement('div');
@@ -385,26 +392,26 @@ export class ZoomController {
     selection.style.zIndex = '100';
     selection.style.pointerEvents = 'none';
 
-    // Get element position
-    const rect = element.getBoundingClientRect();
+    // Get element position relative to the waveform display container
+    const rectContainer = waveformDisplay.getBoundingClientRect();
 
     // Calculate left and width
-    const left = Math.min(startX, endX) - rect.left;
+    const left = Math.min(startX, endX) - rectContainer.left;
     const width = Math.abs(endX - startX);
 
-    // Set position
+    // Set position - ensure it covers the entire height of the container
     selection.style.left = `${left}px`;
     selection.style.top = '0';
     selection.style.width = `${width}px`;
     selection.style.height = '100%';
 
     // Make sure target element has relative positioning
-    if (window.getComputedStyle(element).position === 'static') {
-      element.style.position = 'relative';
+    if (window.getComputedStyle(waveformDisplay).position === 'static') {
+      waveformDisplay.style.position = 'relative';
     }
 
-    // Append to element
-    element.appendChild(selection);
+    // Append to the waveform display container
+    waveformDisplay.appendChild(selection);
   }
 
   /**
