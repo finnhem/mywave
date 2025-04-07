@@ -281,14 +281,15 @@ export class ZoomController {
           startTime = _timeRange.start + _ratio * (_timeRange.end - _timeRange.start);
 
           // Add visual feedback for dragging
-          container.style.cursor = 'ew-resize';
+          document.body.style.cursor = 'ew-resize';
         }
       }) as EventListener,
       { capture: true }
     );
 
-    // Mouse move event - during drag
-    container.addEventListener(
+    // Use document-level event listeners to handle mouse movement
+    // and release outside of the initial container
+    document.addEventListener(
       'mousemove',
       ((event: Event) => {
         const mouseEvent = event as MouseEvent;
@@ -302,8 +303,7 @@ export class ZoomController {
       { capture: true }
     );
 
-    // Mouse up event - end of drag
-    container.addEventListener(
+    document.addEventListener(
       'mouseup',
       ((event: Event) => {
         const mouseEvent = event as MouseEvent;
@@ -321,7 +321,7 @@ export class ZoomController {
           this.clearZoomSelection();
 
           // Reset cursor
-          container.style.cursor = '';
+          document.body.style.cursor = '';
 
           // Clear active waveform cell reference
           activeWaveformCell = null;
@@ -338,19 +338,6 @@ export class ZoomController {
       { capture: true }
     );
 
-    // Mouse leave - cancel drag
-    container.addEventListener(
-      'mouseleave',
-      ((_event: Event) => {
-        if (isDragging) {
-          isDragging = false;
-          container.style.cursor = '';
-          this.clearZoomSelection();
-        }
-      }) as EventListener,
-      { capture: true }
-    );
-
     // Handle case where ctrl is released during drag
     document.addEventListener(
       'keyup',
@@ -358,8 +345,9 @@ export class ZoomController {
         const keyEvent = event as KeyboardEvent;
         if (!keyEvent.ctrlKey && isDragging) {
           isDragging = false;
-          container.style.cursor = '';
+          document.body.style.cursor = '';
           this.clearZoomSelection();
+          activeWaveformCell = null;
         }
       }) as EventListener,
       { capture: true }
