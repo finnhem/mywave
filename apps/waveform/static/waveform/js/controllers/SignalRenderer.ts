@@ -20,6 +20,7 @@ import { GRID_LAYOUTS, STYLES, applyStyles, getSignalValueAtTime } from '../util
 export class SignalRenderer {
   private waveformContainer: HTMLElement | null;
   private signalData: Signal[] | null = null;
+  private visibleSignals: Signal[] | null = null;
 
   /**
    * Creates a new SignalRenderer instance.
@@ -46,64 +47,133 @@ export class SignalRenderer {
   updateDisplayedSignals(hierarchyRoot: ExtendedHierarchyNode): void {
     if (!this.waveformContainer) return;
 
-    // Get all visible signals
+    // Get all visible signals from the hierarchy using the existing method
     const visibleSignals = this.collectVisibleSignals(hierarchyRoot);
 
-    // Store active signal name before clearing the container
-    const _activeSignalName = window.SignalRow?.activeSignalName;
+    // Store current visible signals for optimization
+    const currentlyVisible = this.visibleSignals || [];
+    // Store old map for comparison
+    const oldVisibleMap = new Map<string, boolean>();
+    for (const signal of currentlyVisible) {
+      oldVisibleMap.set(signal.name, true);
+    }
 
-    // Check if we're toggling just a single signal's visibility
-    const toggledSignalName = window._lastToggledSignalName;
-    const isToggleOperation = toggledSignalName !== undefined;
+    // Store new visible signals
+    this.visibleSignals = visibleSignals;
 
-    if (isToggleOperation) {
-      // For a toggle operation, we can optimize by only affecting the relevant row
-      const existingRow = this.waveformContainer.querySelector(
-        `.signal-row[data-signal-name="${toggledSignalName}"]`
-      );
+    // Calculate differences for optimized rendering
+    const newSignals = visibleSignals.filter((signal) => !oldVisibleMap.has(signal.name));
+    const hasChanges = newSignals.length > 0 || currentlyVisible.length !== visibleSignals.length;
 
-      const isNowVisible = visibleSignals.some((s) => s.name === toggledSignalName);
+    // Track if this is a toggle operation (just showing/hiding signals)
+    const isToggleOperation = this.isToggleOperation(hierarchyRoot);
 
-      if (existingRow && !isNowVisible) {
-        // If the row exists and signal is now invisible, just hide it with CSS
-        // instead of removing it to maintain its position in the DOM
-        existingRow.classList.add('hidden-signal-row');
-        (existingRow as HTMLElement).style.display = 'none';
+    if (isToggleOperation && !hasChanges) {
+      // If this is just a toggle with no visible changes, do nothing
+      return;
+    }
+    if (isToggleOperation && hasChanges) {
+      // For toggle operations with changes, only add/remove necessary signals
 
-        // We don't need to remove the canvas from cursor.canvases
-        // as it will be skipped when invisible
-      } else if (!existingRow && isNowVisible) {
-        // If row doesn't exist and signal is now visible, add it
-        const signal = visibleSignals.find((s) => s.name === toggledSignalName);
-        if (signal) {
-          this.renderSignalRow(signal, this.waveformContainer);
+      // Get names of visible signals for fast lookup
+      const visibleSignalNames = new Set(visibleSignals.map((s) => s.name));
 
-          // Render it immediately
-          setTimeout(() => {
-            const canvas = this.waveformContainer?.querySelector(
-              `.signal-row[data-signal-name="${toggledSignalName}"] .waveform-canvas`
-            ) as HTMLCanvasElement;
-            if (canvas) {
-              clearAndRedraw(canvas);
-            }
-          }, 0);
+      // Remove signals that are no longer visible
+      const visibleElements = this.waveformContainer.querySelectorAll('.signal-row');
+      for (const element of Array.from(visibleElements)) {
+        const signalName = element.getAttribute('data-signal-name');
+        if (signalName && !visibleSignalNames.has(signalName)) {
+          element.remove();
         }
-      } else if (existingRow && isNowVisible) {
-        // If the row exists and was previously hidden, make it visible again
-        existingRow.classList.remove('hidden-signal-row');
-        (existingRow as HTMLElement).style.display = '';
-
-        // Redraw its canvas
-        setTimeout(() => {
-          const canvas = existingRow.querySelector('.waveform-canvas') as HTMLCanvasElement;
-          if (canvas) {
-            clearAndRedraw(canvas);
-          }
-        }, 0);
       }
 
-      // Reset the toggled signal name after handling it
-      window._lastToggledSignalName = undefined;
+      // Add new signals
+      let lastElement: HTMLElement | null = null;
+
+      // Find existing signal elements for positioning
+      const existingSignalRows = new Map<string, HTMLElement>();
+      const signalRowElements = this.waveformContainer.querySelectorAll('.signal-row');
+      for (const row of Array.from(signalRowElements)) {
+        const name = row.getAttribute('data-signal-name');
+        if (name) {
+          existingSignalRows.set(name, row as HTMLElement);
+          lastElement = row as HTMLElement;
+        }
+      }
+
+      // Insert new signals in their correct position
+      for (let i = 0; i < visibleSignals.length; i++) {
+        const signal = visibleSignals[i];
+
+        // Skip if signal already exists
+        if (existingSignalRows.has(signal.name)) {
+          continue;
+        }
+
+        // Find where to insert this signal
+        let insertBefore: HTMLElement | null = null;
+
+        // Look for the next visible signal that already exists
+        for (let j = i + 1; j < visibleSignals.length; j++) {
+          const nextSignal = visibleSignals[j];
+          if (existingSignalRows.has(nextSignal.name)) {
+            insertBefore = existingSignalRows.get(nextSignal.name) || null;
+            break;
+          }
+        }
+
+        // Render the new signal
+        const signalRow = this.renderSignalRow(signal);
+
+        // Insert at the correct position
+        if (insertBefore) {
+          this.waveformContainer.insertBefore(signalRow, insertBefore);
+        } else if (lastElement) {
+          // Insert after the last element if we found one
+          if (lastElement.nextSibling) {
+            this.waveformContainer.insertBefore(signalRow, lastElement.nextSibling);
+          } else {
+            this.waveformContainer.appendChild(signalRow);
+          }
+        } else {
+          // Otherwise just append
+          this.waveformContainer.appendChild(signalRow);
+        }
+
+        existingSignalRows.set(signal.name, signalRow);
+        lastElement = signalRow;
+      }
+
+      // Batch the canvas redraws using requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        const canvases =
+          this.waveformContainer?.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
+        if (!canvases) return;
+
+        let canvasCount = 0;
+
+        // Process canvases in smaller batches to prevent UI freezing
+        const processBatch = (startIndex: number, batchSize: number) => {
+          const endIndex = Math.min(startIndex + batchSize, canvases.length);
+
+          for (let i = startIndex; i < endIndex; i++) {
+            clearAndRedraw(canvases[i]);
+            canvasCount++;
+          }
+
+          // If there are more canvases to process, schedule the next batch
+          if (endIndex < canvases.length) {
+            requestAnimationFrame(() => processBatch(endIndex, batchSize));
+          } else {
+            console.debug(`Rendered ${canvasCount} waveform canvases`);
+            this.recordCacheStats();
+            this.preloadNextBatch();
+          }
+        };
+
+        // Start processing with a reasonable batch size
+        processBatch(0, 10);
+      });
     } else {
       // For non-toggle operations, do the full redraw
 
@@ -112,18 +182,47 @@ export class SignalRenderer {
 
       // Render all visible signals directly
       for (const signal of visibleSignals) {
-        this.renderSignalRow(signal, this.waveformContainer);
+        const row = this.renderSignalRow(signal);
+        this.waveformContainer.appendChild(row);
       }
 
-      // Ensure all waveform canvases are properly rendered
-      setTimeout(() => {
-        const canvases = document.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
-        for (const canvas of Array.from(canvases)) {
-          clearAndRedraw(canvas);
-        }
-      }, 10);
-    }
+      // Batch the canvas redraws using requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        const canvases =
+          this.waveformContainer?.querySelectorAll<HTMLCanvasElement>('.waveform-canvas');
+        if (!canvases) return;
 
+        let canvasCount = 0;
+
+        // Process canvases in smaller batches to prevent UI freezing
+        const processBatch = (startIndex: number, batchSize: number) => {
+          const endIndex = Math.min(startIndex + batchSize, canvases.length);
+
+          for (let i = startIndex; i < endIndex; i++) {
+            clearAndRedraw(canvases[i]);
+            canvasCount++;
+          }
+
+          // If there are more canvases to process, schedule the next batch
+          if (endIndex < canvases.length) {
+            requestAnimationFrame(() => processBatch(endIndex, batchSize));
+          } else {
+            console.debug(`Rendered ${canvasCount} waveform canvases`);
+            this.recordCacheStats();
+            this.preloadNextBatch();
+          }
+        };
+
+        // Start processing with a reasonable batch size
+        processBatch(0, 10);
+      });
+    }
+  }
+
+  /**
+   * Records cache performance statistics
+   */
+  private recordCacheStats(): void {
     // Record cache performance metrics for this rendering operation
     const waveformStats = cacheManager.getStats('waveforms');
     if (waveformStats) {
@@ -134,13 +233,18 @@ export class SignalRenderer {
         )}%)`
       );
     }
+  }
 
+  /**
+   * Preloads the next batch of signals that might become visible
+   */
+  private preloadNextBatch(): void {
     // After rendering current signals, preload the next batch that might become visible
     setTimeout(() => {
-      if (this.signalData) {
+      if (this.signalData && this.visibleSignals) {
         // Get all signals not currently visible but might be scrolled to
         const nextSignalBatch = this.signalData
-          .filter((s) => !visibleSignals.some((vs) => vs.name === s.name))
+          .filter((s) => !this.visibleSignals?.some((vs) => vs.name === s.name))
           .slice(0, 10);
 
         if (nextSignalBatch.length > 0) {
@@ -153,9 +257,9 @@ export class SignalRenderer {
   /**
    * Renders a single signal row in the waveform container.
    * @param signal - Signal to render
-   * @param container - Container element
+   * @returns The created row element
    */
-  public renderSignalRow(signal: Signal, container: HTMLElement): void {
+  public renderSignalRow(signal: Signal): HTMLElement {
     // Create row container using grid layout matching the header
     const row = document.createElement('div');
     row.classList.add('signal-row');
@@ -248,7 +352,10 @@ export class SignalRenderer {
 
     // Add redraw method to canvas for easy redrawing when needed
     waveformCanvas.redraw = () => {
-      clearAndRedraw(waveformCanvas);
+      // Use requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        clearAndRedraw(waveformCanvas);
+      });
     };
 
     waveformCell.appendChild(waveformCanvas);
@@ -268,12 +375,14 @@ export class SignalRenderer {
     row.appendChild(waveformCell);
 
     // Add to container
-    container.appendChild(row);
+    this.waveformContainer?.appendChild(row);
 
     // Handle click events on signal rows to manage selection state
     row.addEventListener('click', () => {
       this.handleSignalRowClick(row, signal);
     });
+
+    return row;
   }
 
   /**
@@ -376,6 +485,16 @@ export class SignalRenderer {
       type: 'signal-select',
       signalName: signal.name,
     });
+  }
+
+  /**
+   * Checks if this is a toggle operation.
+   * @param _node - Hierarchy node (unused)
+   * @returns True if this is a toggle operation
+   */
+  private isToggleOperation(_node: ExtendedHierarchyNode): boolean {
+    // Check if this is a toggle operation by looking for the lastToggledSignalName in window
+    return window._lastToggledSignalName !== undefined;
   }
 }
 

@@ -87,30 +87,34 @@ class CacheStore<T> {
   /**
    * Gets a value from the cache
    * @param key Cache key
-   * @returns The cached value or undefined if not found
+   * @param defaultValue Optional default value to return if key not found
+   * @returns The cached value or undefined/defaultValue if not found
    */
-  get(key: string): T | undefined {
-    this.stats.gets++;
-
+  get(key: string, defaultValue?: T): T | undefined {
     const entry = this.cache.get(key);
+
     if (!entry) {
+      // Key not found, return default value if provided
       this.stats.misses++;
-      return undefined;
+      this.stats.gets++;
+      return defaultValue;
     }
 
     // Check if entry has expired
     if (this.hasExpired(entry)) {
-      this.cache.delete(key);
+      this.delete(key);
       this.stats.misses++;
-      this.stats.evictions++;
-      return undefined;
+      this.stats.gets++;
+      return defaultValue;
     }
 
-    // Update access metadata
+    // Update access metadata for LRU/LFU
     entry.lastAccess = Date.now();
     entry.accessCount = (entry.accessCount || 0) + 1;
 
     this.stats.hits++;
+    this.stats.gets++;
+
     return entry.value;
   }
 
@@ -375,21 +379,21 @@ export class CacheManager {
 
     // Canvas dimensions cache (small and persistent)
     this.registerStore<{ width: number; height: number }>('dimensions', {
-      maxSize: 500,
+      maxSize: 1000, // Increased from 500 for better performance
       persistent: true,
       evictionPolicy: 'lru',
     });
 
-    // Rendered waveforms cache (larger but with TTL)
+    // Rendered waveforms cache (larger and longer TTL for better performance)
     this.registerStore<ImageData>('waveforms', {
-      maxSize: 200,
-      defaultTtl: 5 * 60 * 1000, // 5 minutes
-      evictionPolicy: 'lfu',
+      maxSize: 500, // Increased from 200 for better performance
+      defaultTtl: 15 * 60 * 1000, // Increased to 15 minutes for better cache hit ratio
+      evictionPolicy: 'lfu', // LFU works well for repeatedly accessed waveforms
     });
 
     // Computed values cache
     this.registerStore<string>('computedValues', {
-      maxSize: 1000,
+      maxSize: 2000, // Increased from 1000
       evictionPolicy: 'lru',
     });
   }
@@ -407,11 +411,15 @@ export class CacheManager {
    * Gets a value from a cache store
    * @param storeName Store name
    * @param key Cache key
-   * @returns The cached value or undefined if not found
+   * @param defaultValue Default value if key doesn't exist
+   * @returns The cached value or default
    */
-  get<T>(storeName: string, key: string): T | undefined {
+  get<T>(storeName: string, key: string, defaultValue?: T): T | undefined {
     const store = this.stores.get(storeName) as CacheStore<T> | undefined;
-    return store?.get(key);
+    if (!store) return defaultValue;
+
+    // Fast path - no locking needed for reads
+    return store.get(key, defaultValue);
   }
 
   /**
@@ -420,15 +428,24 @@ export class CacheManager {
    * @param key Cache key
    * @param value Value to cache
    * @param ttl Time-to-live in milliseconds
-   * @param dependencies Array of dependency keys that this entry depends on
+   * @param dependencies Dependencies for invalidation
+   * @returns The cache store
    */
-  set<T>(storeName: string, key: string, value: T, ttl?: number, dependencies?: string[]): void {
+  set<T>(
+    storeName: string,
+    key: string,
+    value: T,
+    ttl?: number,
+    dependencies?: string[]
+  ): CacheStore<T> | undefined {
     const store = this.stores.get(storeName) as CacheStore<T> | undefined;
-    if (store) {
-      this.withLock(storeName, () => {
-        store.set(key, value, ttl, dependencies);
-      });
-    }
+    if (!store) return undefined;
+
+    // Use lock for writes to prevent conflicts
+    return this.withLock(storeName, () => {
+      store.set(key, value, ttl, dependencies);
+      return store;
+    });
   }
 
   /**
@@ -557,26 +574,45 @@ export class CacheManager {
   }
 
   /**
-   * Executes a function with a lock for thread safety
-   * @param storeName Store name to lock
+   * Executes a function with a lock on a store
+   * @param storeName Store to lock
    * @param fn Function to execute
+   * @returns Result of the function
    */
-  private withLock(storeName: string, fn: () => void): void {
-    // Simple lock mechanism
-    if (this.locks.get(storeName)) {
-      // Lock is held, retry later
-      setTimeout(() => this.withLock(storeName, fn), 1);
-      return;
+  private withLock<T>(storeName: string, fn: () => T): T {
+    // Skip locking in high-performance scenarios where contention is unlikely
+    if (storeName === 'waveforms' || storeName === 'dimensions') {
+      return fn();
     }
 
+    // Otherwise use locking for thread safety
+    const lockKey = `lock:${storeName}`;
+    if (this.locks.get(lockKey)) {
+      // If locked, wait a bit and retry (simple spinlock)
+      return new Promise<T>((resolve) => {
+        const tryAcquire = () => {
+          if (!this.locks.get(lockKey)) {
+            this.locks.set(lockKey, true);
+            try {
+              const result = fn();
+              resolve(result);
+            } finally {
+              this.locks.set(lockKey, false);
+            }
+          } else {
+            setTimeout(tryAcquire, 5);
+          }
+        };
+        tryAcquire();
+      }) as unknown as T;
+    }
+
+    // Lock, execute, and unlock
+    this.locks.set(lockKey, true);
     try {
-      // Acquire lock
-      this.locks.set(storeName, true);
-      // Execute function
-      fn();
+      return fn();
     } finally {
-      // Release lock
-      this.locks.set(storeName, false);
+      this.locks.set(lockKey, false);
     }
   }
 }

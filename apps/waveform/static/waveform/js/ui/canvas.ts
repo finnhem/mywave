@@ -9,39 +9,98 @@ import { viewport } from '../core/viewport';
 import type { CanvasContext, ViewportRange } from '../types';
 
 /**
- * Updates canvas resolution based on device pixel ratio.
- * @param canvas - Canvas to update
- * @returns Object with context, width, and height
+ * Updates the canvas resolution based on DPI
+ * @param canvas Canvas to update
+ * @param forceUpdate Force the update even if dimensions haven't changed
+ * @returns The canvas context and dimensions
  */
-export function updateCanvasResolution(canvas: HTMLCanvasElement): CanvasContext {
-  const ctx = canvas.getContext('2d');
-
+export function updateCanvasResolution(
+  canvas: HTMLCanvasElement | OffscreenCanvas,
+  forceUpdate = false
+): { ctx: CanvasRenderingContext2D; width: number; height: number } {
+  // Get the canvas context
+  const ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
   if (!ctx) {
     throw new Error('Could not get canvas context');
   }
 
-  // Calculate device pixel ratio for high-DPI displays
-  const dpr = window.devicePixelRatio || 1;
+  // Use a type guard to check if this is an HTMLCanvasElement
+  if (isHTMLCanvasElement(canvas)) {
+    return updateHTMLCanvasResolution(canvas, ctx, forceUpdate);
+  }
+  // For OffscreenCanvas, just return the context and dimensions
+  ctx.imageSmoothingEnabled = false;
+  return { ctx, width: canvas.width, height: canvas.height };
+}
 
-  // Get display size of canvas
+/**
+ * Type guard to check if a canvas is an HTMLCanvasElement
+ */
+function isHTMLCanvasElement(
+  canvas: HTMLCanvasElement | OffscreenCanvas
+): canvas is HTMLCanvasElement {
+  return 'clientWidth' in canvas && 'clientHeight' in canvas;
+}
+
+/**
+ * Updates the resolution of an HTMLCanvasElement
+ */
+function updateHTMLCanvasResolution(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  forceUpdate: boolean
+): { ctx: CanvasRenderingContext2D; width: number; height: number } {
+  // Skip updating resolution if canvas is already properly sized and we're not forcing an update
+  if (
+    !forceUpdate &&
+    canvas.width === canvas.clientWidth * (window.devicePixelRatio || 1) &&
+    canvas.height === canvas.clientHeight * (window.devicePixelRatio || 1)
+  ) {
+    return { ctx, width: canvas.width, height: canvas.height };
+  }
+
+  // Store current transform to restore after resize
+  let currentTransform: DOMMatrix | null = null;
+  if ('getTransform' in ctx) {
+    try {
+      currentTransform = ctx.getTransform();
+    } catch (_e) {
+      // Ignore errors for browsers that don't fully support this
+    }
+  }
+
+  // Get the display size of the canvas
   const displayWidth = canvas.clientWidth;
   const displayHeight = canvas.clientHeight;
 
-  // Check if the canvas is already at the correct size
-  if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
-    // Update canvas size for high-DPI displays
-    canvas.width = displayWidth * dpr;
-    canvas.height = displayHeight * dpr;
+  // Only update if dimensions have changed
+  if (
+    canvas.width !== displayWidth * (window.devicePixelRatio || 1) ||
+    canvas.height !== displayHeight * (window.devicePixelRatio || 1) ||
+    forceUpdate
+  ) {
+    // Set the canvas size to match display size * device pixel ratio
+    canvas.width = displayWidth * (window.devicePixelRatio || 1);
+    canvas.height = displayHeight * (window.devicePixelRatio || 1);
 
-    // Scale context to device pixel ratio
-    ctx.scale(dpr, dpr);
+    // Scale the context to counter the device pixel ratio
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
   }
 
-  return {
-    ctx,
-    width: displayWidth,
-    height: displayHeight,
-  };
+  // Restore the transform if we saved it earlier
+  if (currentTransform && 'setTransform' in ctx) {
+    try {
+      ctx.setTransform(currentTransform);
+    } catch (_e) {
+      // Ignore errors for browsers that don't fully support this
+    }
+  }
+
+  // Set image rendering quality for better performance
+  ctx.imageSmoothingEnabled = false;
+
+  // Return the context and dimensions
+  return { ctx, width: canvas.width, height: canvas.height };
 }
 
 /**

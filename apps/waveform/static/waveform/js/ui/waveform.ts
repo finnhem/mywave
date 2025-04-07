@@ -157,14 +157,47 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
   const isActive = canvas.classList.contains('cursor-active-canvas');
   ctx.strokeStyle = isActive ? '#2563eb' : '#64748b'; // Using blue-600 for active, slate-500 for inactive
   ctx.lineWidth = isActive ? 2.5 : 1; // Make active waveform more prominent
-  ctx.beginPath();
-
-  // Find initial state
-  let lastX: number | null = null;
-  let lastY: number | null = null;
 
   // Find the last point before visible range
-  const initialPoint = data.findLast((point) => point.time <= visibleRange.start);
+  let initialPoint: TimePoint | null = null;
+  let startIndex = 0;
+
+  // Binary search to find the closest point before or at visibleRange.start
+  // This is much faster than using findLast for large datasets
+  if (data.length > 0) {
+    let left = 0;
+    let right = data.length - 1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (data[mid].time <= visibleRange.start) {
+        initialPoint = data[mid];
+        startIndex = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+  }
+
+  // Fast filter visible data points using the found index as a starting point
+  const visibleData: TimePoint[] = [];
+  for (let i = startIndex; i < data.length; i++) {
+    if (data[i].time > visibleRange.end + 1) break;
+    visibleData.push(data[i]);
+  }
+
+  // Early exit if we don't have any points to draw
+  if (visibleData.length === 0 && !initialPoint) {
+    ctx.restore();
+    return;
+  }
+
+  ctx.beginPath();
+
+  // Find initial state and setup
+  let lastX: number | null = null;
+  let lastY: number | null = null;
 
   if (initialPoint) {
     lastY = getYForValue(initialPoint.value, height);
@@ -172,15 +205,25 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
     lastX = 0;
   }
 
-  // Draw visible data points
-  const visibleData = data.filter(
-    (point) => point.time >= visibleRange.start - 1 && point.time <= visibleRange.end + 1
-  );
+  // Use integer values for better performance
+  const dataLength = visibleData.length;
+  const rangeStart = visibleRange.start;
+  const rangeEnd = visibleRange.end;
+  const rangeDiff = rangeEnd - rangeStart;
 
-  for (let i = 0; i < visibleData.length; i++) {
+  // Pre-calculate conversion factor for better performance
+  const timeToXFactor = width / rangeDiff;
+
+  // Draw visible data points using optimized path creation
+  // Draw at most MAX_POINTS transitions to avoid excessive rendering for very dense signals
+  const MAX_POINTS = 1000;
+  const step = dataLength > MAX_POINTS ? Math.ceil(dataLength / MAX_POINTS) : 1;
+
+  for (let i = 0; i < dataLength; i += step) {
     const point = visibleData[i];
-    const x =
-      Math.round(timeToCanvasX(point.time, visibleRange.start, visibleRange.end, width)) + 0.5;
+
+    // Fast x calculation without function call
+    const x = Math.round((point.time - rangeStart) * timeToXFactor) + 0.5;
     const y = Math.round(getYForValue(point.value, height)) + 0.5;
 
     if (lastX === null) {
@@ -247,6 +290,39 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   ctx.strokeStyle = isActive ? '#2563eb' : '#64748b'; // Blue-600 for active, slate-500 for inactive
   ctx.lineWidth = isActive ? 2 : 1; // Make active waveform more prominent
 
+  // Binary search to find the closest point before or at visibleRange.start
+  let initialPoint: TimePoint | null = null;
+  let startIndex = 0;
+
+  if (data.length > 0) {
+    let left = 0;
+    let right = data.length - 1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (data[mid].time <= visibleRange.start) {
+        initialPoint = data[mid];
+        startIndex = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+  }
+
+  // Fast filter visible data points
+  const visibleData: TimePoint[] = [];
+  for (let i = startIndex; i < data.length; i++) {
+    if (data[i].time > visibleRange.end + 1) break;
+    visibleData.push(data[i]);
+  }
+
+  // Pre-calculate conversion parameters
+  const rangeStart = visibleRange.start;
+  const rangeEnd = visibleRange.end;
+  const rangeDiff = rangeEnd - rangeStart;
+  const timeToXFactor = width / rangeDiff;
+
   // Draw horizontal lines across the whole canvas
   const centerY = height / 2;
   const boxHeight = Math.min(30, height - 10);
@@ -256,15 +332,8 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   ctx.lineTo(width, centerY);
   ctx.stroke();
 
-  // Find visible data points
-  const visibleData = data.filter(
-    (point) => point.time >= visibleRange.start - 1 && point.time <= visibleRange.end + 1
-  );
-
-  // Add the last point before the visible range
-  const initialPoint = data.findLast((point) => point.time < visibleRange.start);
-
-  if (initialPoint) {
+  // Add the last point before the visible range if we found one
+  if (initialPoint && !visibleData.includes(initialPoint)) {
     visibleData.unshift(initialPoint);
   }
 
@@ -274,8 +343,8 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   for (let i = 0; i < visibleData.length; i++) {
     const point = visibleData[i];
 
-    // Calculate x position
-    const x = timeToCanvasX(point.time, visibleRange.start, visibleRange.end, width);
+    // Calculate x position using optimized formula
+    const x = (point.time - rangeStart) * timeToXFactor;
 
     // Format value based on signal type
     const formattedValue = formatSignalValue(point.value, signal);
@@ -291,34 +360,37 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
     // Check if there's a next point to determine segment width
     if (i < visibleData.length - 1) {
       const nextPoint = visibleData[i + 1];
-      const nextX = timeToCanvasX(nextPoint.time, visibleRange.start, visibleRange.end, width);
+      const nextX = (nextPoint.time - rangeStart) * timeToXFactor;
 
       // Calculate box width, leaving space for transition lines
       const boxWidth = nextX - x - 2;
 
-      // Always draw the rectangular box, regardless of width
-      const fillColor = isActive ? '#e0e7ff' : '#f8fafc';
+      // Only draw if box has visible width
+      if (boxWidth > 0) {
+        // Always draw the rectangular box, regardless of width
+        const fillColor = isActive ? '#e0e7ff' : '#f8fafc';
 
-      // Draw the box
-      ctx.fillStyle = fillColor;
-      ctx.fillRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+        // Draw the box
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
 
-      // Draw the border
-      ctx.strokeRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
+        // Draw the border
+        ctx.strokeRect(x + 1, centerY - boxHeight / 2, boxWidth, boxHeight);
 
-      // Calculate the width needed for the text based on its content
-      ctx.font = '12px sans-serif';
-      const textWidth = ctx.measureText(formattedValue).width;
-      // Add some padding for better appearance
-      const requiredWidth = textWidth + 10;
+        // Calculate the width needed for the text based on its content
+        ctx.font = '12px sans-serif';
+        const textWidth = ctx.measureText(formattedValue).width;
+        // Add some padding for better appearance
+        const requiredWidth = textWidth + 10;
 
-      // Only draw text if there's enough space for this specific text
-      if (boxWidth > requiredWidth) {
-        // Draw text in the box
-        ctx.fillStyle = '#000000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(formattedValue, x + 1 + boxWidth / 2, centerY);
+        // Only draw text if there's enough space for this specific text
+        if (boxWidth > requiredWidth) {
+          // Draw text in the box
+          ctx.fillStyle = '#000000';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(formattedValue, x + 1 + boxWidth / 2, centerY);
+        }
       }
     } else if (width - x > 1) {
       // Last point
@@ -356,7 +428,7 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
 
   ctx.restore();
 
-  // Draw cursor if it exists (cursor always has a line width of 2)
+  // Draw cursor if it exists
   if (cursor.currentTime !== undefined) {
     drawCursor(
       ctx,
@@ -392,61 +464,67 @@ export function drawTimeline(canvas: HTMLCanvasElement): void {
   const firstMajorTick = Math.ceil(visibleRange.start / timeInterval) * timeInterval;
   const firstMinorTick = Math.ceil(visibleRange.start / minorInterval) * minorInterval;
 
-  // Draw minor ticks
-  ctx.save();
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
+  // Pre-calculate conversion parameters
+  const rangeStart = visibleRange.start;
+  const rangeEnd = visibleRange.end;
+  const timeToXFactor = width / (rangeEnd - rangeStart);
 
+  // Batch minor ticks drawing for better performance
+  const minorTickPositions: number[] = [];
   for (let time = firstMinorTick; time <= visibleRange.end; time += minorInterval) {
     // Skip if this is a major tick
     if (Math.abs(time % timeInterval) < 0.00001) {
       continue;
     }
 
-    const x = Math.round(timeToCanvasX(time, visibleRange.start, visibleRange.end, width)) + 0.5;
+    // Fast x calculation
+    const x = Math.round((time - rangeStart) * timeToXFactor) + 0.5;
+    minorTickPositions.push(x);
+  }
 
+  // Draw all minor ticks in one path
+  ctx.save();
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  for (const x of minorTickPositions) {
     ctx.moveTo(x, height - 5);
     ctx.lineTo(x, height);
   }
 
   ctx.stroke();
 
-  // Draw major ticks and labels
+  // Batch major ticks drawing
+  const majorTickPositions: Array<{ x: number; time: number }> = [];
+  for (let time = firstMajorTick; time <= visibleRange.end; time += timeInterval) {
+    // Fast x calculation
+    const x = Math.round((time - rangeStart) * timeToXFactor) + 0.5;
+    majorTickPositions.push({ x, time });
+  }
+
+  // Draw major ticks in one path
   ctx.strokeStyle = '#1e293b';
+  ctx.beginPath();
+
+  for (const { x } of majorTickPositions) {
+    ctx.moveTo(x, height - 10);
+    ctx.lineTo(x, height);
+  }
+
+  ctx.stroke();
+
+  // Draw labels separately (can't batch text)
   ctx.fillStyle = '#1e293b';
   ctx.font = '10px Arial';
   ctx.textAlign = 'center';
-  ctx.beginPath();
 
-  for (let time = firstMajorTick; time <= visibleRange.end; time += timeInterval) {
-    const x = Math.round(timeToCanvasX(time, visibleRange.start, visibleRange.end, width)) + 0.5;
-
-    // Draw tick
-    ctx.moveTo(x, height - 10);
-    ctx.lineTo(x, height);
-
-    // Draw label
-    // Use window.timescale to ensure consistent time unit display
+  for (const { x, time } of majorTickPositions) {
     const timeLabel = formatTime(time, window.timescale);
     ctx.fillText(timeLabel, x, height - 15);
   }
 
-  ctx.stroke();
   ctx.restore();
-
-  // Draw cursor
-  if (cursor.currentTime !== undefined) {
-    drawCursor(
-      ctx,
-      cursor.currentTime,
-      visibleRange.start,
-      visibleRange.end,
-      width,
-      height,
-      canvas
-    );
-  }
 }
 
 /**
