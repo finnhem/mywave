@@ -363,16 +363,3 @@ export class HierarchyManager {
     }
   }
 }
-
-// Extend Window interface to include updateDisplayedSignals and SignalRow
-declare global {
-  interface Window {
-    updateDisplayedSignals?: () => void;
-    getSignalRenderer?: () => { renderSignalRow: (signal: Signal, container: HTMLElement) => void };
-    _lastToggledSignalName?: string;
-    SignalRow?: {
-      activeSignalName?: string | null;
-      [key: string]: unknown;
-    };
-  }
-}

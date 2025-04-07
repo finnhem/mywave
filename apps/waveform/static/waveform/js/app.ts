@@ -17,6 +17,7 @@ import { HierarchyManager } from './services/hierarchy';
 import { formatSignalValue, signalPreferences } from './services/radix';
 import type {
   CursorState,
+  ExtendedHierarchyNode,
   Signal,
   SignalData,
   SignalPreferences,
@@ -27,49 +28,13 @@ import type {
 import { clearAndRedraw, drawTimeline } from './ui/waveform';
 import { calculateMaxZoom, calculateMinTimeDelta, getSignalValueAtTime } from './utils';
 
-// Re-export from hierarchy.ts to avoid circular dependency
-type ExtendedHierarchyNode = {
-  name: string;
-  fullPath: string;
-  children: Map<string, ExtendedHierarchyNode>;
-  signals: Signal[];
-  parent?: ExtendedHierarchyNode;
-  expanded?: boolean;
-  selected?: boolean;
-  isSignal?: boolean;
-  signalData?: Signal;
-  element?: HTMLElement;
-  visible?: boolean;
-};
-
-// Extend Window interface with our custom properties
-declare global {
-  interface Window {
-    signalPreferences: SignalPreferences;
-    formatSignalValue: (value: string, signal: Signal) => string;
-    clearAndRedraw: (canvas: HTMLCanvasElement) => void;
-    getSignalValueAtTime: (signal: Signal, time: number) => string | undefined;
-    cursor: {
-      currentTime: number;
-      startTime: number;
-      endTime: number;
-      canvases: HTMLCanvasElement[];
-      setTime: (time: number) => void;
-      [key: string]: unknown;
-    };
-    updateDisplayedSignals?: () => void;
-    _lastToggledSignalName?: string;
-    SignalRow?: {
-      activeSignalName?: string | null;
-      [key: string]: unknown;
-    };
-    signals?: Signal[];
-    [key: string]: unknown;
-  }
-
-  interface HTMLElement {
-    hierarchyRoot?: ExtendedHierarchyNode;
-  }
+// Expose key functions on window for easier debugging and external access
+if (typeof window !== 'undefined') {
+  window.signalPreferences = signalPreferences;
+  window.formatSignalValue = formatSignalValue;
+  window.clearAndRedraw = clearAndRedraw;
+  window.getSignalValueAtTime = getSignalValueAtTime;
+  window.cursor = cursor as unknown as typeof window.cursor;
 }
 
 /**
@@ -659,11 +624,3 @@ export class WaveformViewer {
     }
   }
 }
-
-// Make certain functionality globally accessible
-// These will be gradually phased out as the application is modularized further
-window.signalPreferences = signalPreferences;
-window.formatSignalValue = formatSignalValue;
-window.clearAndRedraw = clearAndRedraw;
-window.getSignalValueAtTime = getSignalValueAtTime;
-window.cursor = cursor as unknown as typeof window.cursor;

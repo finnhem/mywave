@@ -12,8 +12,7 @@ import { preloader } from '../services/preload';
 import { cycleRadix, formatSignalValue, getSignalRadix } from '../services/radix';
 import type { ExtendedHierarchyNode, Signal, TimePoint } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
-import { getSignalValueAtTime } from '../utils';
-import { GRID_LAYOUTS, STYLES, applyStyles } from '../utils/styles';
+import { GRID_LAYOUTS, STYLES, applyStyles, getSignalValueAtTime } from '../utils';
 
 /**
  * Controller for signal rendering and management.
@@ -380,17 +379,4 @@ export class SignalRenderer {
   }
 }
 
-// Add to Window interface
-declare global {
-  interface Window {
-    signals?: Signal[];
-    _lastToggledSignalName?: string;
-  }
-
-  interface HTMLCanvasElement {
-    signalData?: TimePoint[];
-    signal?: Signal;
-    valueDisplay?: HTMLElement;
-    redraw?: () => void;
-  }
-}
+// Global interfaces are defined in types/index.ts

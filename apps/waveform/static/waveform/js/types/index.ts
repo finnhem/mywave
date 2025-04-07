@@ -120,6 +120,35 @@ export interface HierarchyNode {
 }
 
 /**
+ * Extended hierarchy node for UI operations
+ * This type is used throughout the application for hierarchy management.
+ */
+export interface ExtendedHierarchyNode {
+  /** Name of this node */
+  name: string;
+  /** Full path to this node */
+  fullPath: string;
+  /** Child nodes mapped by name */
+  children: Map<string, ExtendedHierarchyNode>;
+  /** Signals at this level of the hierarchy */
+  signals: Signal[];
+  /** Parent node reference */
+  parent?: ExtendedHierarchyNode;
+  /** Whether this node is expanded in the UI */
+  expanded?: boolean;
+  /** Whether this node is selected */
+  selected?: boolean;
+  /** Whether this node represents a signal */
+  isSignal?: boolean;
+  /** Signal data for this node if it's a signal */
+  signalData?: Signal;
+  /** DOM element representing this node */
+  element?: HTMLElement;
+  /** Whether this node is visible */
+  visible?: boolean;
+}
+
+/**
  * Canvas context with width and height information
  */
 export interface CanvasContext {
@@ -159,16 +188,6 @@ export interface WaveformCanvas extends HTMLCanvasElement {
   signalName?: string;
 }
 
-/**
- * Extended hierarchy node for UI operations
- */
-export interface ExtendedHierarchyNode extends Omit<HierarchyNode, 'signals'> {
-  /** Signals contained in this node */
-  signals: Signal[];
-  /** Whether this node is visible */
-  visible?: boolean;
-}
-
 /** Configuration options for the waveform viewer */
 export interface WaveformViewerOptions {
   /** DOM element to contain the viewer */
@@ -195,6 +214,26 @@ declare global {
       activeSignalName?: string | null;
       [key: string]: unknown;
     };
+    signalPreferences?: SignalPreferences;
+    formatSignalValue?: (value: string, signal: Signal) => string;
+    clearAndRedraw?: (canvas: HTMLCanvasElement) => void;
+    getSignalValueAtTime?: (signal: Signal, time: number) => string | undefined;
+    cursor?: {
+      currentTime: number;
+      startTime: number;
+      endTime: number;
+      canvases: HTMLCanvasElement[];
+      setTime: (time: number) => void;
+      [key: string]: unknown;
+    };
+    updateDisplayedSignals?: () => void;
+    _lastToggledSignalName?: string;
+    signals?: Signal[];
+    [key: string]: unknown;
+  }
+
+  interface HTMLElement {
+    hierarchyRoot?: ExtendedHierarchyNode;
   }
 }
 

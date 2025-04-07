@@ -3,11 +3,9 @@
  * Re-exports all services for easier imports.
  */
 
-// Re-export events
-export { eventManager } from './events';
-
-// Re-export radix
+// Re-export all services
+export * from './events';
 export * from './radix';
-
-// Re-export hierarchy
 export * from './hierarchy';
+export * from './cache';
+export * from './preload';
