@@ -193,8 +193,8 @@ export class WaveformCell extends BaseCell {
     }
 
     this._zoomHandler = (event: WheelEvent) => {
-      // Only handle wheel events with ctrl key (zoom)
-      if (event.ctrlKey || event.metaKey) {
+      // Only handle wheel events with shift key (zoom)
+      if (event.shiftKey) {
         event.preventDefault();
 
         // Calculate the point under cursor in time

@@ -21,7 +21,7 @@ export class ZoomController {
     this.zoomLevelDisplay = document.getElementById('zoom-level');
     this.initializeZoomControls();
     this.initializeMouseWheelZoom();
-    this.initializeCtrlDragZoom();
+    this.initializeShiftDragZoom();
   }
 
   /**
@@ -130,8 +130,8 @@ export class ZoomController {
    * Handle wheel event for zooming
    */
   private handleWheel(event: WheelEvent): void {
-    // Only handle wheel events with ctrl key (zoom)
-    if (event.ctrlKey || event.metaKey) {
+    // Only handle wheel events with shift key (zoom)
+    if (event.shiftKey) {
       event.preventDefault();
 
       // Find the actual waveform cell or canvas that should be used for position calculation
@@ -215,38 +215,24 @@ export class ZoomController {
   }
 
   /**
-   * Initialize CTRL-Drag zoom functionality
+   * Initialize ctrl-drag zoom functionality
+   * @private
    */
-  private initializeCtrlDragZoom(): void {
-    // Main container for event delegation
-    const rowsContainer = document.getElementById('waveform-rows-container');
+  private initializeShiftDragZoom(): void {
+    const waveformContainer = document.getElementById('waveform-rows-container');
+    if (waveformContainer) {
+      this.addDragZoomToContainer(waveformContainer);
+    }
+
     const timelineContainer = document.getElementById('timeline-container');
-
-    // Create an array of all containers to apply zoom to
-    const containers: HTMLElement[] = [];
-
-    if (rowsContainer) {
-      containers.push(rowsContainer);
-    }
-
     if (timelineContainer) {
-      containers.push(timelineContainer);
-    }
-
-    // Also add direct listeners to canvases for maximum compatibility
-    const waveformCanvases = document.querySelectorAll<HTMLCanvasElement>('canvas.waveform-canvas');
-    for (const canvas of Array.from(waveformCanvases)) {
-      containers.push(canvas);
-    }
-
-    // Add drag zoom to each container
-    for (const container of containers) {
-      this.addDragZoomToContainer(container);
+      this.addDragZoomToContainer(timelineContainer);
     }
   }
 
   /**
-   * Add drag zoom functionality to a specific container
+   * Add drag-to-zoom functionality to a container
+   * @param container - The container to add drag zoom to
    */
   private addDragZoomToContainer(container: HTMLElement): void {
     let isDragging = false;
@@ -259,7 +245,7 @@ export class ZoomController {
       'mousedown',
       ((event: Event) => {
         const mouseEvent = event as MouseEvent;
-        if (mouseEvent.ctrlKey) {
+        if (mouseEvent.shiftKey) {
           mouseEvent.preventDefault();
           isDragging = true;
           startX = mouseEvent.clientX;
@@ -293,7 +279,7 @@ export class ZoomController {
       'mousemove',
       ((event: Event) => {
         const mouseEvent = event as MouseEvent;
-        if (isDragging && mouseEvent.ctrlKey && activeWaveformCell) {
+        if (isDragging && mouseEvent.shiftKey && activeWaveformCell) {
           mouseEvent.preventDefault();
 
           // Create visual indication of selection
@@ -307,7 +293,7 @@ export class ZoomController {
       'mouseup',
       ((event: Event) => {
         const mouseEvent = event as MouseEvent;
-        if (isDragging && mouseEvent.ctrlKey && activeWaveformCell) {
+        if (isDragging && mouseEvent.shiftKey && activeWaveformCell) {
           mouseEvent.preventDefault();
           isDragging = false;
 
@@ -338,12 +324,12 @@ export class ZoomController {
       { capture: true }
     );
 
-    // Handle case where ctrl is released during drag
+    // Handle case where shift is released during drag
     document.addEventListener(
       'keyup',
       ((event: Event) => {
         const keyEvent = event as KeyboardEvent;
-        if (!keyEvent.ctrlKey && isDragging) {
+        if (!keyEvent.shiftKey && isDragging) {
           isDragging = false;
           document.body.style.cursor = '';
           this.clearZoomSelection();

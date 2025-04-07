@@ -24,15 +24,12 @@ export class KeyboardController {
   private initializeKeyboardShortcuts(): void {
     document.addEventListener('keydown', (event) => {
       // Prevent default for navigation keys to avoid page scrolling
-      if (
-        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '-', '=', '0'].includes(event.key)
-      ) {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '-', '0'].includes(event.key)) {
         event.preventDefault();
       }
 
       switch (event.key) {
         case '+':
-        case '=': // = is on the same key as + without shift
           // Zoom in around cursor
           viewport.zoomIn(cursor.currentTime);
           this.updateZoomDisplay();

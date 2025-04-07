@@ -12,7 +12,26 @@
         <div class="flex items-center gap-4">
             <input type="file" name="vcd_file" accept=".vcd" required class="file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
             <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Upload VCD file</button>
-            <div id="file-upload-status" class="ml-auto"></div>
+            <div id="shortcuts-card" class="ml-auto bg-blue-50 border border-blue-200 rounded-md p-2 text-xs text-blue-800">
+                <div class="font-semibold mb-1">Keyboard Shortcuts:</div>
+                <div class="grid grid-cols-2 gap-x-4">
+                    <div>
+                        <span class="font-mono bg-white px-1 rounded border border-blue-100">Shift + Wheel</span> Zoom
+                    </div>
+                    <div>
+                        <span class="font-mono bg-white px-1 rounded border border-blue-100">+</span> Zoom In
+                    </div>
+                    <div>
+                        <span class="font-mono bg-white px-1 rounded border border-blue-100">Shift + Drag</span> Zoom
+                    </div>
+                    <div>
+                        <span class="font-mono bg-white px-1 rounded border border-blue-100">-</span> Zoom Out
+                    </div>
+                    <div>
+                        <span class="font-mono bg-white px-1 rounded border border-blue-100">0</span> Reset Zoom
+                    </div>
+                </div>
+            </div>
         </div>
     </form>
     <div id="workspace" class="grid grid-cols-[300px_1fr] gap-5 h-[calc(100vh-150px)] p-2.5 overflow-hidden">
@@ -36,11 +55,13 @@
                     <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">Next ↓</button>
                     <button class="px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-100">End ⏭</button>
                 </div>
-                <div id="zoom-controls" class="flex items-center justify-center gap-2.5 my-2.5">
-                    <button id="zoom-out" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍-</button>
-                    <button id="zoom-full" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">Full</button>
-                    <span id="zoom-level" class="font-mono text-sm min-w-[50px] text-center">1x</span>
-                    <button id="zoom-in" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍+</button>
+                <div class="flex items-center justify-between gap-2.5 my-2.5">
+                    <div id="zoom-controls" class="flex items-center gap-2.5">
+                        <button id="zoom-out" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍-</button>
+                        <button id="zoom-full" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">Full</button>
+                        <span id="zoom-level" class="font-mono text-sm min-w-[50px] text-center">1x</span>
+                        <button id="zoom-in" class="px-2.5 py-1.5 text-base bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">🔍+</button>
+                    </div>
                 </div>
             </div>
             <div id="waveform-display-container" class="flex flex-col overflow-hidden relative flex-grow min-w-fit">

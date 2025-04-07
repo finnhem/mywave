@@ -105,30 +105,38 @@ export function initializeZoomHandlers(canvas: HTMLCanvasElement): void {
   });
 }
 
-// Add event listener for mouse wheel zoom on a canvas element
+/**
+ * Enables shift+wheel zoom on a canvas element
+ * @param canvas Canvas element to attach wheel zoom to
+ */
 export function enableWheelZoom(canvas: HTMLCanvasElement): void {
-  const _wheelHandler = (wheelEvent: WheelEvent) => {
-    // Prevent default scrolling behavior
-    wheelEvent.preventDefault();
+  canvas.addEventListener(
+    'wheel',
+    (event: WheelEvent) => {
+      // Only handle wheel events with shift key (zoom)
+      if (!event.shiftKey) return;
 
-    // Get canvas dimensions
-    const rect = canvas.getBoundingClientRect();
+      // Prevent default scrolling behavior
+      event.preventDefault();
 
-    // Calculate relative position of the cursor within the canvas
-    const x = wheelEvent.clientX - rect.left;
-    const xRatio = x / rect.width;
+      // Get canvas dimensions
+      const rect = canvas.getBoundingClientRect();
 
-    // Calculate the time point under the cursor
-    const visibleRange = viewport.getVisibleRange();
-    const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
+      // Calculate relative position of the cursor within the canvas
+      const x = event.clientX - rect.left;
+      const xRatio = x / rect.width;
 
-    // Calculate new zoom level based on wheel delta
-    const currentZoom = viewport.zoomLevel;
-    const newZoom = calculateWheelZoom(currentZoom, wheelEvent.deltaY);
+      // Calculate the time point under the cursor
+      const visibleRange = viewport.getVisibleRange();
+      const centerTime = visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
 
-    // Apply zoom centered on the cursor position
-    viewport.setZoom(newZoom, centerTime);
-  };
+      // Calculate new zoom level based on wheel delta
+      const currentZoom = viewport.zoomLevel;
+      const newZoom = calculateWheelZoom(currentZoom, event.deltaY);
 
-  // ... existing code ...
+      // Apply zoom centered on the cursor position
+      viewport.setZoom(newZoom, centerTime);
+    },
+    { passive: false }
+  );
 }
