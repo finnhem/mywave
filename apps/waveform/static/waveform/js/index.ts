@@ -5,19 +5,19 @@
  */
 
 import { WaveformViewer } from './app';
-import { UploadApiResponse, WaveformViewerOptions } from './types/index';
+import { type UploadApiResponse, WaveformViewerOptions } from './types/index';
 
 /**
  * Custom error class for file upload related errors
  */
 class FileUploadError extends Error {
   public readonly code: string;
-  
-  constructor(message: string, code: string = 'UPLOAD_ERROR') {
+
+  constructor(message: string, code = 'UPLOAD_ERROR') {
     super(message);
     this.name = 'FileUploadError';
     this.code = code;
-    
+
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, FileUploadError);
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // No need to set Content-Type as FormData will set it with boundary
         });
 
-        const result = await response.json() as UploadApiResponse;
+        const result = (await response.json()) as UploadApiResponse;
 
         if (result.success) {
           if (statusElement) {
@@ -78,9 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           console.error('Error uploading file:', error);
         }
-        
+
         if (statusElement) {
-          statusElement.textContent = error instanceof FileUploadError ? error.message : 'Error uploading file';
+          statusElement.textContent =
+            error instanceof FileUploadError ? error.message : 'Error uploading file';
           statusElement.className = 'ml-auto text-red-500';
         }
       }

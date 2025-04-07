@@ -105,7 +105,7 @@ export class SignalRenderer {
     const row = document.createElement('div');
     row.classList.add('signal-row');
     row.setAttribute('data-signal-name', signal.name);
-    
+
     // Apply row styling using our centralized styles
     applyStyles(row, {
       display: 'grid',
@@ -113,9 +113,9 @@ export class SignalRenderer {
       alignItems: 'center',
       minWidth: 'fit-content',
       height: '2.5rem', // h-10 = 2.5rem
-      padding: '0'
+      padding: '0',
     });
-    
+
     // Add the Tailwind classes from our styles module
     row.className = `signal-row ${STYLES.SIGNAL_ROW.BASE} ${GRID_LAYOUTS.WAVEFORM_GRID}`;
 
@@ -164,7 +164,7 @@ export class SignalRenderer {
     // Create radix display element inside
     const radixDisplay = document.createElement('div');
     radixDisplay.classList.add('radix-display');
-    
+
     // Apply radix styling based on current value
     const currentRadix = getSignalRadix(signal.name);
     radixDisplay.className = `radix-display ${STYLES.RADIX.BASE} ${STYLES.RADIX[currentRadix]}`;

@@ -56,7 +56,7 @@ declare global {
       [key: string]: unknown;
     };
     signals?: Signal[];
-    [key: string]: any;
+    [key: string]: unknown;
   }
 
   interface HTMLElement {
@@ -245,52 +245,56 @@ export class WaveformViewer {
   private adjustScrollbarSpacerWidth(): void {
     const waveformRowsContainer = document.getElementById('waveform-rows-container');
     const scrollbarSpacer = document.querySelector('.scrollbar-spacer') as HTMLElement;
-    
+
     if (waveformRowsContainer && scrollbarSpacer) {
       // Function to update scrollbar width
       const updateScrollbarWidth = () => {
         // Method 1: Calculate from the container itself
         if (waveformRowsContainer.scrollHeight > waveformRowsContainer.clientHeight) {
-          const currentScrollbarWidth = waveformRowsContainer.offsetWidth - waveformRowsContainer.clientWidth;
+          const currentScrollbarWidth =
+            waveformRowsContainer.offsetWidth - waveformRowsContainer.clientWidth;
           if (currentScrollbarWidth > 0) {
             scrollbarSpacer.style.width = `${currentScrollbarWidth}px`;
-            return;
           }
         }
-        
+
         // Method 2: Use a temporary div for initial calculation when container doesn't have scrollbar yet
         const tempDiv = document.createElement('div');
-        tempDiv.style.width = '100px';
-        tempDiv.style.height = '100px';
-        tempDiv.style.overflow = 'scroll';
-        tempDiv.style.position = 'absolute';
+        tempDiv.style.cssText = `
+          width: 100px;
+          height: 100px;
+          overflow: scroll;
+          position: absolute;
+          visibility: hidden;
+          top: -9999px;
+        `;
         tempDiv.style.top = '-9999px';
         document.body.appendChild(tempDiv);
-        
+
         // Calculate scrollbar width
         const scrollbarWidth = tempDiv.offsetWidth - tempDiv.clientWidth;
-        
+
         // Remove the temporary div
         document.body.removeChild(tempDiv);
-        
+
         // Set the scrollbar spacer width
         scrollbarSpacer.style.width = `${scrollbarWidth}px`;
       };
-      
+
       // Initially set the width
       updateScrollbarWidth();
-      
+
       // Update on window resize
       window.addEventListener('resize', updateScrollbarWidth);
-      
+
       // Update when the signal data changes
       eventManager.on('redraw-request', updateScrollbarWidth);
-      
+
       // Set up a MutationObserver to watch for changes in the waveform container
       const observer = new MutationObserver(updateScrollbarWidth);
-      observer.observe(waveformRowsContainer, { 
-        childList: true, 
-        subtree: true 
+      observer.observe(waveformRowsContainer, {
+        childList: true,
+        subtree: true,
       });
     }
   }
@@ -367,24 +371,56 @@ export class WaveformViewer {
       if (!data.timescale || typeof data.timescale !== 'object') {
         console.warn('Invalid timescale format, using default');
         // Create a completely new SignalData object to avoid readonly property issues
-        const newData: SignalData = {
+        const validatedData: SignalData = {
           signals: data.signals || [],
-          timescale: { value: 1, unit: 'ns' }
+          timescale: { value: 1, unit: 'ns' },
         };
-        data = newData;
+        // Use the validated data for the rest of the function
+        this.signalData = validatedData;
+
+        // Make timescale info available via a custom property
+        (window as Record<string, unknown>)._waveformTimescale = {
+          unit: validatedData.timescale.unit,
+          value: validatedData.timescale.value,
+        };
+
+        // Create a reference to the timescale for other components to use
+        if (!(window as Record<string, unknown>).timescale) {
+          (window as Record<string, unknown>).timescale = (
+            window as Record<string, unknown>
+          )._waveformTimescale;
+        }
+
+        // Set up signal renderer
+        if (this.signalRenderer) {
+          this.signalRenderer.setSignalData(validatedData.signals);
+        }
+
+        // Make signals globally available
+        window.signals = validatedData.signals;
+
+        // Build hierarchy
+        const root = this.hierarchyManager.buildHierarchy(validatedData.signals);
+
+        // Continue with the rest of the function...
+        this.processSignalData(validatedData, root);
+        return;
       }
 
+      // If we reach here, data has valid timescale
       this.signalData = data;
 
       // Make timescale info available via a custom property
-      (window as any)._waveformTimescale = {
+      (window as Record<string, unknown>)._waveformTimescale = {
         unit: data.timescale.unit,
-        value: data.timescale.value
+        value: data.timescale.value,
       };
-      
+
       // Create a reference to the timescale for other components to use
-      if (!(window as any).timescale) {
-        (window as any).timescale = (window as any)._waveformTimescale;
+      if (!(window as Record<string, unknown>).timescale) {
+        (window as Record<string, unknown>).timescale = (
+          window as Record<string, unknown>
+        )._waveformTimescale;
       }
 
       // Set up signal renderer
@@ -398,105 +434,111 @@ export class WaveformViewer {
       // Build hierarchy
       const root = this.hierarchyManager.buildHierarchy(data.signals);
 
-      // Ensure all nodes are expanded by default
-      this.expandAllNodes(root);
-
-      // Store root on tree element
-      if (this.elements.tree) {
-        this.elements.tree.hierarchyRoot = root;
-
-        // Create and append tree elements
-        const treeElement = this.hierarchyManager.createTreeElement(root);
-        this.elements.tree.innerHTML = '';
-        this.elements.tree.appendChild(treeElement);
-
-        // Update displayed signals
-        if (this.signalRenderer) {
-          this.signalRenderer.updateDisplayedSignals(root);
-        }
-      }
-
-      // Handle signals and initialize timeline
-      if (data.signals.length > 0) {
-        // Find the global time range across all signals
-        let globalStartTime = Number.POSITIVE_INFINITY;
-        let globalEndTime = Number.NEGATIVE_INFINITY;
-
-        // Collect all signal data points for zoom calculation
-        const allDataPoints: Array<{ time: number }> = [];
-
-        for (const signal of data.signals) {
-          if (signal.data && signal.data.length > 0) {
-            globalStartTime = Math.min(globalStartTime, signal.data[0].time);
-            globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
-            allDataPoints.push(...signal.data);
-          }
-        }
-
-        // Sort all data points by time to ensure proper delta calculation
-        allDataPoints.sort((a, b) => a.time - b.time);
-
-        // Only proceed if we found valid time range
-        if (
-          globalStartTime !== Number.POSITIVE_INFINITY &&
-          globalEndTime !== Number.NEGATIVE_INFINITY &&
-          this.elements.timeline
-        ) {
-          // Initialize viewport with total time range
-          viewport.setTotalTimeRange(globalStartTime, globalEndTime);
-
-          // Calculate minimum time delta and update max zoom
-          if (allDataPoints.length > 0) {
-            const minTimeDelta = calculateMinTimeDelta(allDataPoints);
-
-            if (minTimeDelta) {
-              const totalTimeRange = globalEndTime - globalStartTime;
-              const maxZoom = calculateMaxZoom(
-                minTimeDelta,
-                this.elements.timeline.clientWidth,
-                totalTimeRange
-              );
-              viewport.setMaxZoom(maxZoom);
-            }
-          }
-
-          // Initialize zoom to 1x
-          viewport.setZoom(1);
-
-          // Initialize cursor
-          cursor.canvases.push(this.elements.timeline);
-          cursor.startTime = globalStartTime;
-          cursor.endTime = globalEndTime;
-          cursor.currentTime = globalStartTime;
-
-          this.elements.timeline.onclick = this.handleTimelineClick.bind(this);
-
-          // Draw the timeline
-          if (drawTimeline) {
-            drawTimeline(this.elements.timeline);
-          }
-
-          // Update zoom display
-          if (this.zoomController) {
-            this.zoomController.updateZoomDisplay();
-          }
-        } else {
-          console.warn('Invalid time range or no timeline element');
-          // Set default time range if we couldn't calculate it
-          if (this.elements.timeline) {
-            const defaultStart = 0;
-            const defaultEnd = 100;
-            viewport.setTotalTimeRange(defaultStart, defaultEnd);
-            cursor.startTime = defaultStart;
-            cursor.endTime = defaultEnd;
-            cursor.currentTime = defaultStart;
-          }
-        }
-      } else {
-        console.warn('No signal data available to display');
-      }
+      // Process the data
+      this.processSignalData(data, root);
     } catch (error) {
       console.error('Error loading signal data:', error);
+    }
+  }
+
+  // Helper method to avoid duplication in the loadData method
+  private processSignalData(data: SignalData, root: ExtendedHierarchyNode): void {
+    // Ensure all nodes are expanded by default
+    this.expandAllNodes(root);
+
+    // Store root on tree element
+    if (this.elements.tree) {
+      this.elements.tree.hierarchyRoot = root;
+
+      // Create and append tree elements
+      const treeElement = this.hierarchyManager.createTreeElement(root);
+      this.elements.tree.innerHTML = '';
+      this.elements.tree.appendChild(treeElement);
+
+      // Update displayed signals
+      if (this.signalRenderer) {
+        this.signalRenderer.updateDisplayedSignals(root);
+      }
+    }
+
+    // Handle signals and initialize timeline
+    if (data.signals.length > 0) {
+      // Find the global time range across all signals
+      let globalStartTime = Number.POSITIVE_INFINITY;
+      let globalEndTime = Number.NEGATIVE_INFINITY;
+
+      // Collect all signal data points for zoom calculation
+      const allDataPoints: Array<{ time: number }> = [];
+
+      for (const signal of data.signals) {
+        if (signal.data && signal.data.length > 0) {
+          globalStartTime = Math.min(globalStartTime, signal.data[0].time);
+          globalEndTime = Math.max(globalEndTime, signal.data[signal.data.length - 1].time);
+          allDataPoints.push(...signal.data);
+        }
+      }
+
+      // Sort all data points by time to ensure proper delta calculation
+      allDataPoints.sort((a, b) => a.time - b.time);
+
+      // Only proceed if we found valid time range
+      if (
+        globalStartTime !== Number.POSITIVE_INFINITY &&
+        globalEndTime !== Number.NEGATIVE_INFINITY &&
+        this.elements.timeline
+      ) {
+        // Initialize viewport with total time range
+        viewport.setTotalTimeRange(globalStartTime, globalEndTime);
+
+        // Calculate minimum time delta and update max zoom
+        if (allDataPoints.length > 0) {
+          const minTimeDelta = calculateMinTimeDelta(allDataPoints);
+
+          if (minTimeDelta) {
+            const totalTimeRange = globalEndTime - globalStartTime;
+            const maxZoom = calculateMaxZoom(
+              minTimeDelta,
+              this.elements.timeline.clientWidth,
+              totalTimeRange
+            );
+            viewport.setMaxZoom(maxZoom);
+          }
+        }
+
+        // Initialize zoom to 1x
+        viewport.setZoom(1);
+
+        // Initialize cursor
+        cursor.canvases.push(this.elements.timeline);
+        cursor.startTime = globalStartTime;
+        cursor.endTime = globalEndTime;
+        cursor.currentTime = globalStartTime;
+
+        this.elements.timeline.onclick = this.handleTimelineClick.bind(this);
+
+        // Draw the timeline
+        if (drawTimeline) {
+          drawTimeline(this.elements.timeline);
+        }
+
+        // Update zoom display
+        if (this.zoomController) {
+          this.zoomController.updateZoomDisplay();
+        }
+      } else {
+        console.warn('Invalid time range or no timeline element');
+        // Set default time range if we couldn't calculate it
+        if (this.elements.timeline) {
+          const defaultStart = 0;
+          const defaultEnd = 100;
+          viewport.setTotalTimeRange(defaultStart, defaultEnd);
+          cursor.startTime = defaultStart;
+          cursor.endTime = defaultEnd;
+          cursor.currentTime = defaultStart;
+        }
+      }
+    } else {
+      console.warn('No signal data available to display');
     }
   }
 

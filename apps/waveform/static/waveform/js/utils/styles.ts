@@ -16,7 +16,7 @@ export const STYLES = {
     BASE: 'grid items-center min-w-fit h-10 px-0 hover:bg-gray-50',
     ACTIVE: 'active bg-blue-50 border-l-3 border-blue-500',
   },
-  
+
   // Cell styling
   CELLS: {
     NAME: 'overflow-hidden text-ellipsis whitespace-nowrap px-2.5',
@@ -24,7 +24,7 @@ export const STYLES = {
     RADIX: 'flex justify-center',
     WAVEFORM: 'overflow-hidden min-w-0 h-10',
   },
-  
+
   // Header styling
   HEADER: {
     ROW: 'grid items-stretch h-10 font-bold bg-white sticky top-0 z-10 flex-grow',
@@ -33,7 +33,7 @@ export const STYLES = {
     RADIX_CELL: 'flex items-center justify-center',
     TIMELINE_CELL: 'overflow-hidden h-full',
   },
-  
+
   // Radix display styling
   RADIX: {
     BASE: 'text-xs uppercase font-bold cursor-pointer',
@@ -55,15 +55,18 @@ export const STYLES = {
  * @param conditionalStyles - Object mapping condition to style string
  * @returns Combined className string
  */
-export function classNames(baseStyles: string, conditionalStyles: Record<string, boolean> = {}): string {
+export function classNames(
+  baseStyles: string,
+  conditionalStyles: Record<string, boolean> = {}
+): string {
   const classes = [baseStyles];
-  
+
   for (const [styleClass, condition] of Object.entries(conditionalStyles)) {
     if (condition) {
       classes.push(styleClass);
     }
   }
-  
+
   return classes.join(' ');
 }
 
@@ -74,6 +77,7 @@ export function classNames(baseStyles: string, conditionalStyles: Record<string,
  */
 export function applyStyles(element: HTMLElement, styles: Record<string, string>): void {
   for (const [property, value] of Object.entries(styles)) {
-    element.style[property as any] = value;
+    // Use more specific type but still allow any CSS property
+    (element.style as any)[property] = value;
   }
-} 
+}

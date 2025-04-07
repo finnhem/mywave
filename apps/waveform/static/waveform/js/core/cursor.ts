@@ -6,6 +6,7 @@
 
 import { eventManager } from '../services/events';
 import type { CursorState } from '../types';
+import { viewport } from './viewport';
 
 /**
  * CursorManager class to handle cursor state and operations.
@@ -103,8 +104,9 @@ class CursorManager implements CursorState {
     const x = clientX - rect.left;
     const xRatio = x / rect.width;
 
-    // Calculate time from X coordinate
-    return this.startTime + xRatio * (this.endTime - this.startTime);
+    // Calculate time from X coordinate based on visible range instead of total range
+    const visibleRange = viewport.getVisibleRange();
+    return visibleRange.start + xRatio * (visibleRange.end - visibleRange.start);
   }
 
   /**

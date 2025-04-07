@@ -95,7 +95,7 @@ export function drawCursor(
   } else {
     ctx.strokeStyle = '#6b7280'; // Gray-500
   }
-  
+
   // Always use a consistent line width of 2
   ctx.lineWidth = 2;
 
