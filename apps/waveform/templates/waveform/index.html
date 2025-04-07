@@ -8,13 +8,13 @@
 </head>
 <body class="flex flex-col h-screen overflow-hidden">
     <!-- Top Controls Bar -->
-    <div class="p-3 border-b border-gray-200 bg-gray-50">
-        <div id="waveform-toolbar" class="flex flex-wrap items-center gap-4">
+    <div class="p-2 border-b border-gray-200 bg-gray-50">
+        <div id="waveform-toolbar" class="flex flex-wrap items-center gap-3">
             <!-- File Controls -->
             <div class="flex items-center p-2 rounded bg-white border border-gray-200">
                 <div class="flex items-center gap-3">
-                    <input type="file" id="file-input" name="vcd_file" accept=".vcd" required class="file:mr-2 file:py-2 file:px-3 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 text-xs text-gray-500">
-                    <button id="upload-button" type="button" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium">Upload VCD file</button>
+                    <input type="file" id="file-input" name="vcd_file" accept=".vcd" required class="file:mr-2 file:py-2 file:px-3 file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 text-xs text-gray-500 w-[220px]">
+                    <button id="upload-button" type="button" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium h-9">Upload VCD file</button>
                 </div>
             </div>
             
@@ -22,49 +22,62 @@
             <div class="flex items-center p-2 rounded bg-white border border-gray-200">
                 <div id="cursor-time" class="font-bold text-gray-700 px-3 min-w-[140px]">Cursor Time: 0</div>
                 
-                <div class="h-10 mx-2 border-r border-gray-200"></div>
+                <div class="h-9 mx-2 border-r border-gray-200"></div>
                 
                 <div id="cursor-controls" class="flex gap-2 px-1">
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Move to Start">⏮</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Previous Down">↓</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Previous Up">↑</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Previous Change">◀</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Next Change">▶</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Next Up">↑</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Next Down">↓</button>
-                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Move to End">⏭</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Move to Start">⏮</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Previous Down">↓</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Previous Up">↑</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Previous Change">◀</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Next Change">▶</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Next Up">↑</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Next Down">↓</button>
+                    <button class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Move to End">⏭</button>
                 </div>
             </div>
             
             <!-- Zoom Controls -->
             <div class="flex items-center p-2 rounded bg-white border border-gray-200">
                 <div id="zoom-controls" class="flex items-center gap-2 px-1">
-                    <button id="zoom-out" class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Zoom Out">🔍-</button>
+                    <button id="zoom-out" class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Zoom Out">🔍-</button>
                     <button id="zoom-full" class="px-3 py-1.5 text-sm border border-gray-200 rounded hover:bg-gray-100 h-9">Full</button>
                     <span id="zoom-level" class="font-mono text-sm min-w-[50px] text-center font-medium">1.0x</span>
-                    <button id="zoom-in" class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-10 h-9 flex items-center justify-center" title="Zoom In">🔍+</button>
+                    <button id="zoom-in" class="p-1.5 border border-gray-200 rounded hover:bg-gray-100 text-sm w-9 h-9 flex items-center justify-center" title="Zoom In">🔍+</button>
                 </div>
             </div>
             
-            <!-- Keyboard Shortcuts -->
-            <div id="shortcuts-card" class="ml-auto bg-blue-50 border border-blue-200 rounded-md p-2.5 text-xs text-blue-800">
-                <div class="flex flex-col">
-                    <div class="font-semibold mb-1.5">Keyboard Shortcuts:</div>
-                    <div class="grid grid-cols-3 gap-x-5 gap-y-1.5">
-                        <div>
-                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-100">Shift + Wheel</span> Zoom
-                        </div>
-                        <div>
-                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-100">+</span> Zoom In
-                        </div>
-                        <div>
-                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-100">0</span> Reset Zoom
-                        </div>
-                        <div>
-                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-100">Shift + Drag</span> Zoom
-                        </div>
-                        <div>
-                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-100">-</span> Zoom Out
+            <!-- Keyboard Shortcuts - Compact Design -->
+            <div class="ml-auto relative group">
+                <button id="shortcuts-button" class="flex items-center h-9 px-3 py-1.5 text-sm border border-gray-200 rounded bg-white hover:bg-gray-100 focus:bg-blue-50 focus:border-blue-200" title="Keyboard Shortcuts">
+                    <span class="mr-1">⌨️</span>
+                    <span>Shortcuts</span>
+                </button>
+                
+                <!-- Dropdown Content - Hidden by default -->
+                <div id="shortcuts-dropdown" class="hidden absolute right-0 mt-1 p-3 bg-white border border-gray-200 rounded shadow-lg z-20 w-[360px]">
+                    <div class="text-xs">
+                        <div class="font-medium mb-2 text-gray-700">Keyboard Shortcuts</div>
+                        <div class="grid grid-cols-2 gap-y-2 gap-x-4">
+                            <div class="flex items-center">
+                                <span class="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700 mr-2">Shift + Wheel</span>
+                                <span class="text-gray-600">Zoom</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700 mr-2">+</span>
+                                <span class="text-gray-600">Zoom In</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700 mr-2">Shift + Drag</span>
+                                <span class="text-gray-600">Zoom</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700 mr-2">-</span>
+                                <span class="text-gray-600">Zoom Out</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700 mr-2">0</span>
+                                <span class="text-gray-600">Reset Zoom</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -73,21 +86,25 @@
     </div>
 
     <!-- Main Content Area -->
-    <div id="workspace" class="grid grid-cols-[280px_1fr] gap-3 flex-grow overflow-hidden">
-        <div id="signal-selector-container" class="border border-gray-200 rounded bg-white flex flex-col overflow-hidden">
-            <div class="signal-selector-controls flex gap-2 p-2 bg-gray-50 border-b border-gray-200">
-                <button id="select-all" class="flex-1 px-2 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Show All</button>
-                <button id="deselect-all" class="flex-1 px-2 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-blue-50 hover:border-blue-500">Hide All</button>
+    <div id="workspace" class="grid grid-cols-[280px_1px_1fr] gap-0 flex-grow overflow-hidden">
+        <div id="signal-selector-container" class="border border-gray-200 rounded-l bg-white flex flex-col overflow-hidden">
+            <div class="signal-selector-controls flex gap-2 p-0 px-2 bg-gray-50 border-b border-gray-200 h-9">
+                <button id="select-all" class="flex-1 px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-100 my-1">Show All</button>
+                <button id="deselect-all" class="flex-1 px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-100 my-1">Hide All</button>
             </div>
             <div id="signal-tree" class="overflow-y-auto flex-grow p-2 select-none"></div>
         </div>
-        <div id="waveform-viewer-container" class="flex flex-col overflow-hidden relative">
+        
+        <!-- Vertical Divider -->
+        <div class="bg-gray-200"></div>
+        
+        <div id="waveform-viewer-container" class="flex flex-col overflow-hidden relative border border-gray-200 rounded-r">
             <div id="waveform-display-container" class="flex flex-col overflow-hidden relative flex-grow min-w-fit">
                 <div class="flex items-stretch min-w-fit">
-                    <div class="waveform-header-row grid grid-cols-[300px_100px_50px_1fr] items-stretch h-9 font-bold bg-white sticky top-0 z-10 flex-grow"
+                    <div class="waveform-header-row grid grid-cols-[300px_100px_50px_1fr] items-stretch h-9 font-medium bg-gray-50 border-b border-gray-200 sticky top-0 z-10 flex-grow"
                          data-grid-layout="waveform-grid"
                          data-style="header-row">
-                        <div class="flex items-center px-2" data-style="header-name-cell">Signals</div>
+                        <div class="flex items-center px-3" data-style="header-name-cell">Signals</div>
                         <div class="flex items-center justify-center" data-style="header-value-cell">Value</div>
                         <div class="flex items-center justify-center" data-style="header-radix-cell">Radix</div>
                         <div id="timeline-container" class="overflow-hidden h-full" data-style="header-timeline-cell">
@@ -95,15 +112,15 @@
                         </div>
                     </div>
                     <!-- Spacer div to account for scrollbar width -->
-                    <div class="scrollbar-spacer w-[17px] h-9 bg-white"></div>
+                    <div class="scrollbar-spacer w-[17px] h-9 bg-gray-50 border-b border-gray-200"></div>
                 </div>
                 <div id="waveform-rows-container" class="flex-1 overflow-y-auto relative">
                     <!-- Row template -->
                     <div class="grid grid-cols-[300px_100px_50px_1fr] items-center min-w-fit h-9 px-0" 
                          data-style="signal-row-base"
                          data-grid-layout="waveform-grid">
-                        <div class="overflow-hidden text-ellipsis whitespace-nowrap px-2" data-style="cell-name"></div>
-                        <div class="flex justify-end text-right font-mono text-sm w-full px-2" data-style="cell-value"></div>
+                        <div class="overflow-hidden text-ellipsis whitespace-nowrap px-3" data-style="cell-name"></div>
+                        <div class="flex justify-end text-right font-mono text-sm w-full px-3" data-style="cell-value"></div>
                         <div class="flex justify-center" data-style="cell-radix"></div>
                         <div class="overflow-hidden min-w-0 h-9" data-style="cell-waveform">
                             <canvas class="w-full h-full block" data-style="canvas-base"></canvas>

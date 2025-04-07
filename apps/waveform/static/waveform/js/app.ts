@@ -140,8 +140,6 @@ export class WaveformViewer {
     tree.id = 'signal-tree';
     tree.classList.add(
       'signal-tree',
-      'border',
-      'border-gray-300',
       'rounded',
       'p-2',
       'max-h-full',
@@ -156,8 +154,6 @@ export class WaveformViewer {
       this.elements.tree = existingTreeElement as HTMLElement;
       // Ensure proper styling
       this.elements.tree.classList.add(
-        'border',
-        'border-gray-300',
         'rounded',
         'p-2',
         'max-h-full',

@@ -89,15 +89,14 @@ export function drawCursor(
   // Draw cursor line
   ctx.save();
 
-  // Use different styling for the active canvas, but keep line width consistent at 2
+  // Use different styling for the active canvas
   if (canvas.classList.contains('cursor-active-canvas')) {
-    ctx.strokeStyle = '#4f46e5'; // Indigo-600
+    ctx.strokeStyle = '#4f46e5'; // Indigo-600 for active canvas cursor
+    ctx.lineWidth = 2.5; // Thicker line matches waveform thickness
   } else {
-    ctx.strokeStyle = '#6b7280'; // Gray-500
+    ctx.strokeStyle = '#94a3b8'; // Slate-400 for inactive canvas cursor
+    ctx.lineWidth = 2;
   }
-
-  // Always use a consistent line width of 2
-  ctx.lineWidth = 2;
 
   // Draw dotted line for cursor
   ctx.setLineDash([4, 4]);

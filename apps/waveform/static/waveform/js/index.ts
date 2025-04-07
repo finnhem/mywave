@@ -34,6 +34,27 @@ declare global {
 
 // Create and initialize the viewer when this module is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize shortcut dropdown functionality
+  const shortcutsButton = document.getElementById('shortcuts-button');
+  const shortcutsDropdown = document.getElementById('shortcuts-dropdown');
+
+  if (shortcutsButton && shortcutsDropdown) {
+    // Toggle dropdown on button click
+    shortcutsButton.addEventListener('click', () => {
+      shortcutsDropdown.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+      if (
+        !shortcutsButton.contains(event.target as Node) &&
+        !shortcutsDropdown.contains(event.target as Node)
+      ) {
+        shortcutsDropdown.classList.add('hidden');
+      }
+    });
+  }
+
   // Initialize upload form handling
   const uploadForm = document.getElementById('upload-form') as HTMLFormElement;
   const fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -46,17 +67,17 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Please select a VCD file to upload');
         return;
       }
-      
+
       // Create a FormData instance from the hidden form
       const formData = new FormData(uploadForm);
-      
+
       // Add the file from the file input
       formData.set('vcd_file', fileInput.files[0]);
 
       try {
         uploadButton.disabled = true;
         uploadButton.textContent = 'Uploading...';
-        
+
         const response = await fetch(window.location.pathname, {
           method: 'POST',
           body: formData,
@@ -81,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (error) {
         uploadButton.textContent = 'Upload VCD file';
         uploadButton.disabled = false;
-        
+
         if (error instanceof FileUploadError) {
           console.error(`${error.name} (${error.code}):`, error.message);
           alert(error.message);

@@ -154,8 +154,9 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
   clearCanvas(ctx, canvas.width, canvas.height);
 
   ctx.save();
-  ctx.strokeStyle = canvas.classList.contains('cursor-active-canvas') ? '#2563eb' : 'black';
-  ctx.lineWidth = canvas.classList.contains('cursor-active-canvas') ? 2 : 1;
+  const isActive = canvas.classList.contains('cursor-active-canvas');
+  ctx.strokeStyle = isActive ? '#2563eb' : '#64748b'; // Using blue-600 for active, slate-500 for inactive
+  ctx.lineWidth = isActive ? 2.5 : 1; // Make active waveform more prominent
   ctx.beginPath();
 
   // Find initial state
@@ -243,8 +244,8 @@ function drawDataWave(canvas: HTMLCanvasElement, data: TimePoint[], signal?: Sig
   ctx.save();
 
   // Get appropriate color based on active state
-  ctx.strokeStyle = isActive ? '#2563eb' : '#1e293b';
-  ctx.lineWidth = isActive ? 2 : 1;
+  ctx.strokeStyle = isActive ? '#2563eb' : '#64748b'; // Blue-600 for active, slate-500 for inactive
+  ctx.lineWidth = isActive ? 2 : 1; // Make active waveform more prominent
 
   // Draw horizontal lines across the whole canvas
   const centerY = height / 2;

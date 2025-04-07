@@ -315,6 +315,9 @@ export class SignalRenderer {
    * @param signal - Signal data associated with the row
    */
   private handleSignalRowClick(row: HTMLElement, signal: Signal): void {
+    // Store previous active signal name before updating
+    const previousActiveSignalName = window.SignalRow?.activeSignalName;
+
     // Update active signal for cursor navigation
     if (window.SignalRow) {
       window.SignalRow.activeSignalName = signal.name;
@@ -328,8 +331,46 @@ export class SignalRenderer {
       }
     }
 
+    // Clear all active waveform canvases
+    const allCanvases = document.querySelectorAll('.waveform-canvas');
+    for (const canvas of Array.from(allCanvases)) {
+      canvas.classList.remove('cursor-active-canvas');
+    }
+
     // Set the clicked row as active
     row.classList.add('active', 'bg-blue-50', 'border-l-3', 'border-blue-500');
+
+    // Set the corresponding canvas as active
+    const signalCanvas = document.querySelector(
+      `canvas[data-signal-name="${signal.name}"]`
+    ) as HTMLCanvasElement;
+    if (signalCanvas) {
+      signalCanvas.classList.add('cursor-active-canvas');
+    }
+
+    // Force redraw on both the previously active canvas and the newly active one
+    if (previousActiveSignalName && previousActiveSignalName !== signal.name) {
+      const previousCanvas = document.querySelector(
+        `canvas[data-signal-name="${previousActiveSignalName}"]`
+      ) as HTMLCanvasElement;
+
+      if (previousCanvas) {
+        if (typeof previousCanvas.redraw === 'function') {
+          previousCanvas.redraw();
+        } else {
+          clearAndRedraw(previousCanvas);
+        }
+      }
+    }
+
+    // Redraw the newly active canvas
+    if (signalCanvas) {
+      if (typeof signalCanvas.redraw === 'function') {
+        signalCanvas.redraw();
+      } else {
+        clearAndRedraw(signalCanvas);
+      }
+    }
 
     // Emit signal select event
     eventManager.emit({
