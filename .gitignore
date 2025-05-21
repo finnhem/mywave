@@ -59,3 +59,5 @@ node_modules/
 !.yarn/versions
 
 .devcontainer/devcontainer.json
+
+apps/waveform/migrations/*
