@@ -9,7 +9,7 @@ import { type CanvasClickEvent, type RedrawRequestEvent, eventManager } from '..
 import type { Signal, TimePoint } from '../types';
 import { CacheableCanvas } from '../ui/CacheableCanvas';
 import { drawWaveform } from '../ui/waveform';
-import { STYLES } from '../utils/styles';
+import { DIMENSIONS, STYLES } from '../utils/styles';
 import { calculateWheelZoom } from '../utils/zoom';
 import { BaseCell } from './BaseCell';
 
@@ -294,7 +294,7 @@ export class WaveformCell extends BaseCell {
         // Final attempt with default dimensions if all retries fail
         if (this._canvas.width === 0 || this._canvas.height === 0) {
           // Set default dimensions
-          this._cacheableCanvas.setDimensions(1000, 40);
+          this._cacheableCanvas.setDimensions(1000, DIMENSIONS.ROW_HEIGHT_PX);
           this._hasMounted = true;
 
           // Use requestAnimationFrame to ensure the drawing happens after layout is complete
@@ -318,7 +318,7 @@ export class WaveformCell extends BaseCell {
         this._hasMounted = true;
       } else {
         // Set default dimensions if no cached value exists
-        this._cacheableCanvas.setDimensions(1000, 40);
+        this._cacheableCanvas.setDimensions(1000, DIMENSIONS.ROW_HEIGHT_PX);
         this._hasMounted = true;
       }
     }

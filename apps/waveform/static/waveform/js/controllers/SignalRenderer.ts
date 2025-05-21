@@ -12,7 +12,7 @@ import { preloader } from '../services/preload';
 import { cycleRadix, formatSignalValue, getSignalRadix } from '../services/radix';
 import type { ExtendedHierarchyNode, Signal, TimePoint } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
-import { GRID_LAYOUTS, STYLES, applyStyles, getSignalValueAtTime } from '../utils';
+import { DIMENSIONS, GRID_LAYOUTS, STYLES, applyStyles, getSignalValueAtTime } from '../utils';
 
 /**
  * Controller for signal rendering and management.
@@ -271,7 +271,7 @@ export class SignalRenderer {
       gridTemplateColumns: '300px 100px 50px 1fr',
       alignItems: 'center',
       minWidth: 'fit-content',
-      height: '2.5rem', // h-10 = 2.5rem
+      height: DIMENSIONS.ROW_HEIGHT_REM,
       padding: '0',
     });
 

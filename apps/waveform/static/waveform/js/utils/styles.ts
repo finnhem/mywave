@@ -3,6 +3,13 @@
  * This provides a single source of truth for styling across the application
  */
 
+// Dimension constants
+export const DIMENSIONS = {
+  ROW_HEIGHT: 'h-9',
+  ROW_HEIGHT_REM: '2.25rem',
+  ROW_HEIGHT_PX: 36
+};
+
 // Grid layout definitions
 export const GRID_LAYOUTS = {
   // Main grid for signal rows and header
@@ -13,7 +20,7 @@ export const GRID_LAYOUTS = {
 export const STYLES = {
   // Waveform row styling
   SIGNAL_ROW: {
-    BASE: 'grid items-center min-w-fit h-10 px-0 hover:bg-gray-50',
+    BASE: `grid items-center min-w-fit ${DIMENSIONS.ROW_HEIGHT} px-0 hover:bg-gray-50`,
     ACTIVE: 'active bg-blue-50 border-l-3 border-blue-500',
   },
 
@@ -23,12 +30,12 @@ export const STYLES = {
     VALUE: 'flex justify-end text-right font-mono text-sm w-full px-2.5',
     VALUE_TEXT: 'font-mono text-sm w-full text-right tabular-nums',
     RADIX: 'flex justify-center',
-    WAVEFORM: 'overflow-hidden min-w-0 h-10',
+    WAVEFORM: `overflow-hidden min-w-0 ${DIMENSIONS.ROW_HEIGHT}`,
   },
 
   // Header styling
   HEADER: {
-    ROW: 'grid items-stretch h-10 font-bold bg-white sticky top-0 z-10 flex-grow',
+    ROW: `grid items-stretch ${DIMENSIONS.ROW_HEIGHT} font-bold bg-white sticky top-0 z-10 flex-grow`,
     NAME_CELL: 'flex items-center px-2.5',
     VALUE_CELL: 'flex items-center justify-center',
     RADIX_CELL: 'flex items-center justify-center',

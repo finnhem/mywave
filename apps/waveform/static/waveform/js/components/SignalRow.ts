@@ -8,7 +8,7 @@ import { type CanvasClickEvent, type SignalSelectEvent, eventManager } from '../
 import type { Signal } from '../types';
 import { clearAndRedraw } from '../ui/waveform';
 import { drawWaveform } from '../ui/waveform';
-import { GRID_LAYOUTS, STYLES } from '../utils/styles';
+import { DIMENSIONS, GRID_LAYOUTS, STYLES } from '../utils/styles';
 import { NameCell } from './NameCell';
 import { RadixCell } from './RadixCell';
 import { ValueCell } from './ValueCell';
@@ -89,7 +89,7 @@ export class SignalRow {
         } else {
           // Use default dimensions if no cached values
           this.waveformCell.canvas.width = 1000;
-          this.waveformCell.canvas.height = 40;
+          this.waveformCell.canvas.height = DIMENSIONS.ROW_HEIGHT_PX;
         }
       }
 

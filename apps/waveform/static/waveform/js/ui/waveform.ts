@@ -8,6 +8,7 @@ import { cursor } from '../core/cursor';
 import { viewport } from '../core/viewport';
 import { formatSignalValue } from '../services/radix';
 import { type Signal, type TimePoint, WaveformStyle } from '../types';
+import { DIMENSIONS } from '../utils/styles';
 import { formatTime } from '../utils/time';
 import {
   clearCanvas,
@@ -109,7 +110,8 @@ export function clearAndRedraw(canvas: HTMLCanvasElement): void {
  * @returns Y coordinate in canvas space
  */
 function getYForValue(value: string, height: number): number {
-  const padding = 10;
+  // Use a consistent padding that's proportional to the row height
+  const padding = Math.max(3, Math.floor(height * 0.1)); // 10% of height or at least 3px
 
   if (value === '1' || value === 'b1') {
     return padding;
@@ -157,6 +159,11 @@ function drawLogicWave(canvas: HTMLCanvasElement, data: TimePoint[]): void {
   const isActive = canvas.classList.contains('cursor-active-canvas');
   ctx.strokeStyle = isActive ? '#2563eb' : '#64748b'; // Using blue-600 for active, slate-500 for inactive
   ctx.lineWidth = isActive ? 2.5 : 1; // Make active waveform more prominent
+
+  // Clip the drawing to the row height to prevent overflow
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
 
   // Find the last point before visible range
   let initialPoint: TimePoint | null = null;

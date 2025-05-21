@@ -15,42 +15,37 @@ A web-based digital waveform viewer for VCD (Value Change Dump) files. Built wit
 
 ## Prerequisites
 
-- Python 3.8 or higher
-- Node.js 18+ and npm (for TypeScript/JavaScript dependencies)
-- uv (install via curl: https://github.com/astral-sh/uv#installation)
+- Python 3
+- make
 
-## Installation
+## Development
 
-1. Install uv using the official installer:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-2. Clone the repository:
+1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/mywave.git
 cd mywave
 ```
 
-3. Create and activate a virtual environment using uv:
+2. Generate devcontainer config:
 ```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+make generate-devcontainer
 ```
 
-4. Install Python dependencies using uv:
+3. Reopen repo in devcontainer
+
+4. Install dependencies:
 ```bash
-uv pip install -e .
+make devcontainer_deps
 ```
 
-5. Install TypeScript and other frontend dependencies:
+5. Run website
 ```bash
-npm install
+make run_website
 ```
 
-6. Generate lock file (if not exists):
+6. Kill website
 ```bash
-uv lock
+make kill
 ```
 
 ## Dependency Management
@@ -67,37 +62,6 @@ We use multiple tools for dependency management:
   - `tsconfig.json`: TypeScript configuration
   - `biome.json`: Biome configuration for linting and formatting
   - `rspack.config.js`: Rspack bundler configuration
-
-## Development
-
-You'll need to run three processes for development:
-
-1. Apply database migrations first:
-```bash
-python manage.py migrate
-```
-
-2. Start all development processes:
-
-**In terminal 1 - Tailwind CSS:**
-```bash
-python manage.py tailwind start
-```
-This watches and compiles your CSS changes
-
-**In terminal 2 - Django server:**
-```bash
-python manage.py runserver
-```
-This runs the Django development server on http://localhost:8000
-
-**In terminal 3 - TypeScript/JavaScript:**
-```bash
-npm run watch
-```
-This watches and rebuilds your TypeScript/JavaScript files when they change
-
-3. Open your browser and navigate to `http://localhost:8000`
 
 All changes will be automatically recompiled:
 - Python files: Django auto-reloads
@@ -194,3 +158,11 @@ Please ensure:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details
+
+
+
+## Reference
+
+```bash
+cd theme/static_src && npx tailwindcss --postcss -i ./src/styles.css -o ../static/css/dist/styles.css
+```
